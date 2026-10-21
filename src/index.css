@@ -1,0 +1,60 @@
+:root {
+  --font-serif: 'Cinzel', serif;
+  --font-decorative: 'Cinzel Decorative', serif;
+  --font-sanskrit: 'Rozha One', 'Cinzel', serif;
+  --font-sans: 'Outfit', sans-serif;
+
+  --color-gold: #fbbf24;
+  --color-gold-bright: #fde047;
+  --color-gold-dark: #b45309;
+  --color-flame: #ef4444;
+  --color-orange: #f97316;
+  --color-cyan: #38bdf8;
+  --color-dark-bg: #09050e;
+  --color-card-bg: rgba(14, 9, 24, 0.75);
+
+  --shadow-gold: 0 0 25px rgba(251, 191, 36, 0.4);
+  --shadow-flame: 0 0 35px rgba(239, 68, 68, 0.5);
+
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  font-weight: 400;
+  color-scheme: dark;
+  color: #f8fafc;
+  background-color: var(--color-dark-bg);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  background-color: #060309;
+  scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09050e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #f59e0b, #ef4444);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #fbbf24;
+}
