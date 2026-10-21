@@ -28,7 +28,6 @@
   100% { transform: translate(1px, -2px); }
 }
 
-/* Background Particle Canvas (Fixed to viewport so fireworks & rockets render seamlessly across scroll) */
 .diwali-particle-canvas {
   position: fixed;
   top: 0;
@@ -37,6 +36,8 @@
   height: 100vh;
   pointer-events: none;
   z-index: 75;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* -------------------------------------------------------------
@@ -780,13 +781,15 @@
    ------------------------------------------------------------- */
 .ignition-station-wrapper {
   position: fixed;
-  right: 28px;
-  bottom: 96px;
+  right: 22px;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
   z-index: 75;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 36px; /* Generous vertical clearance: lighter sits prominently high above matchbox */
+  gap: 28px; /* Clean vertical clearance between lighter and matchbox */
 }
 
 /* --- LIGHTER DOCK STAND (MOUNTED DIRECTLY ABOVE MATCHBOX) --- */
@@ -961,6 +964,49 @@
   background: repeating-linear-gradient(45deg, #292524 0, #292524 4px, #44403c 4px, #44403c 8px);
   border-top: 1px solid #78716c;
   border-radius: 0 0 6px 6px;
+}
+
+/* --- VISIBLE LABELS FOR IGNITION STATION TOOLS (LIGHTER & MATCHBOX) --- */
+.station-tool-label {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.lighter-name-label {
+  color: #38bdf8;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.65);
+}
+
+.station-matchbox-label {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fde047;
+  text-align: center;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 10px rgba(250, 204, 21, 0.6);
+  pointer-events: none;
+  user-select: none;
+  margin-top: -8px;
+}
+
+.matchbox-name-label {
+  color: #fde047;
+  background: rgba(41, 37, 36, 0.92);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.65);
 }
 
 .matchbox-label {
@@ -1169,42 +1215,16 @@
   pointer-events: none;
 }
 
-/* Tooltip label */
-.cracker-label-pill {
-  position: absolute;
-  bottom: -34px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(15, 8, 28, 0.92);
-  border: 1.5px solid rgba(251, 191, 36, 0.5);
-  padding: 4px 10px;
-  border-radius: 12px;
-  white-space: nowrap;
-  display: flex;
-  gap: 6px;
-  font-size: 0.8rem;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-}
-
-.cracker-node:hover .cracker-label-pill,
-.cracker-node.match-hover .cracker-label-pill {
-  opacity: 1;
-  transform: translateX(-50%) translateY(-2px);
-}
-
-.pill-name { color: #fef08a; font-weight: 700; }
-.pill-hindi { color: #f97316; font-size: 0.75rem; font-weight: 600; }
-.pill-timing-tag {
-  background: rgba(56, 189, 248, 0.2);
-  border: 1px solid rgba(56, 189, 248, 0.5);
-  color: #38bdf8;
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  border-radius: 6px;
-  font-weight: 700;
+/* Tooltips and floating labels completely removed per user request */
+.cracker-label-pill,
+.ignite-hint-bubble,
+.spent-match-hint-bubble,
+.lighter-status-bubble,
+.lighter-double-click-badge,
+.lighter-in-use-badge,
+.matchbox-helper-tag,
+.pickup-pulse-badge {
+  display: none !important;
 }
 .pill-blast-tag {
   background: rgba(239, 68, 68, 0.2);
@@ -3073,13 +3093,15 @@
     font-size: 0.75rem;
   }
 
-  /* Responsive Ignition Station and Dustbin Placement above bottom bar */
+  /* Responsive Ignition Station and Dustbin Placement */
   .ignition-station-wrapper {
     right: 14px;
-    bottom: 96px;
-    gap: 32px;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%) scale(0.92);
+    gap: 22px;
     z-index: 75;
-    transform-origin: bottom right;
+    transform-origin: center right;
   }
   .lighter-dock-stand {
     margin-bottom: 10px;
@@ -3160,12 +3182,15 @@
     padding-bottom: 130px; /* Safe breathing room so bottom dock tools never cover floor crackers */
   }
 
-  /* Mobile Ignition Station: Lighter elevated high above Matchbox with clear separation */
+  /* Mobile Ignition Station: Positioned middle of right edge */
   .ignition-station-wrapper {
-    right: 10px;
-    bottom: 96px;
-    gap: 30px;
+    right: 8px;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%) scale(0.85);
+    gap: 16px;
     z-index: 75;
+    transform-origin: center right;
   }
   .lighter-dock-stand {
     margin-bottom: 12px;
@@ -3185,6 +3210,15 @@
     width: 84px;
     height: 44px;
     padding: 2px 5px;
+  }
+  .station-tool-label {
+    font-size: 0.58rem;
+    padding: 2px 6px;
+    margin-top: 4px;
+  }
+  .station-matchbox-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
   }
   .resting-matchstick-preview {
     top: -8px;

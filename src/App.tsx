@@ -436,7 +436,6 @@ export function App() {
 
   // Dock or put away matchstick into stand
   const handlePutDownMatch = () => {
-    soundEngine.playDiwaliChime();
     setMatchState('docked');
     setIsNearFuse(false);
     setHoveredCrackerId(null);
@@ -451,7 +450,6 @@ export function App() {
 
   // Put Lighter back onto lighter stand above matchbox
   const handlePutDownLighter = () => {
-    soundEngine.playDiwaliChime();
     setActiveTool('match');
     setMatchState('docked');
     setIsNearFuse(false);
@@ -787,52 +785,48 @@ export function App() {
             }
           }, intervalTime);
         } else if (target.type === 'ladi') {
-          // --- LADI: MURGACHAP CHATAI (50, 100, 200, 500 BOMBS IN ONE - RHYTHMIC BURST & 5S CLEANUP) ---
+          // --- LADI: MURGACHAP CHATAI (Audio-reactive synchronized burst with murgachap ladi.mp3) ---
           const totalCount = target.totalLadiCount || 100;
-          let poppedCount = 0;
 
           setCrackers((curr) =>
             curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
           );
 
-          // Pacing: Burst a bit slower (one by one, 120ms tick) so each firecracker pop is distinctly heard and seen
-          const batchSize = 1;
-          const tickMs = 120;
+          // Audio-reactive Murgachap ladi performance:
+          // Every pop sound in murgachap ladi.mp3 triggers an explosion flash, screen shake, and paper fragments!
+          soundEngine.playLadiPerformance({
+            maxPops: totalCount,
+            onPop: (popIdx) => {
+              setScreenShake(0.14);
+              setBurstCount((b) => b + 1);
 
-          const ladiTimer = setInterval(() => {
-            poppedCount += batchSize;
-            soundEngine.playLadiPop();
-            setScreenShake(0.12);
-            setBurstCount((b) => b + batchSize);
+              // Pop mini firecrackers and red paper shreds around the mat
+              const jitterX = (Math.random() - 0.5) * 65;
+              const jitterY = (Math.random() - 0.5) * 28;
+              const expId = `${target.id}-pop-${popIdx}-${Date.now()}`;
 
-            // Pop mini firecrackers and red paper shreds around the mat
-            const jitterX = (Math.random() - 0.5) * 60;
-            const jitterY = (Math.random() - 0.5) * 25;
-            const expId = `${target.id}-pop-${poppedCount}-${Date.now()}`;
+              setBombExplosions((exps) => [
+                ...exps,
+                {
+                  id: expId,
+                  x: coords.x + jitterX,
+                  y: coords.y + jitterY,
+                  time: Date.now(),
+                  variant: 'mirchi',
+                  scale: 0.38,
+                },
+              ]);
 
-            setBombExplosions((exps) => [
-              ...exps,
-              {
-                id: expId,
-                x: coords.x + jitterX,
-                y: coords.y + jitterY,
-                time: Date.now(),
-                variant: 'mirchi',
-                scale: 0.38,
-              },
-            ]);
-
-            setTimeout(() => {
-              setBombExplosions((curr) => curr.filter((e) => e.id !== expId));
-            }, 300);
-
-            if (poppedCount >= totalCount) {
-              clearInterval(ladiTimer);
+              setTimeout(() => {
+                setBombExplosions((curr) => curr.filter((e) => e.id !== expId));
+              }, 280);
+            },
+            onComplete: () => {
               setCrackers((curr) =>
                 curr.map((c) => (c.id === crackerId ? { ...c, state: 'exploded' } : c))
               );
 
-              // After blasting, the leftover scraps spread around the screen and disappear automatically after exactly 5 seconds
+              // Scraps spread around and disappear automatically after 5 seconds
               setTimeout(() => {
                 setCrackers((curr) =>
                   curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
@@ -841,8 +835,8 @@ export function App() {
                   setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
                 }, 800);
               }, 5000);
-            }
-          }, tickMs);
+            },
+          });
         } else if (target.type === 'fuljhadi') {
           // --- FULJHADI: 10s, 20s, 30s SPARKLER WITH IRON CRACKLE ---
           const duration = target.duration || 10000;
@@ -1083,9 +1077,8 @@ export function App() {
           setCrackers((curr) => curr.filter((c) => c.id !== id));
           setCleanedCount((prev) => prev + 1);
         }
-      } else if (dist >= 8) {
-        soundEngine.playDiwaliChime();
       }
+      // Note: No sound played on drag release / selection
 
       crackerPointerStartRef.current = null;
       setDraggingCrackerId(null);
@@ -1094,7 +1087,6 @@ export function App() {
 
     if (draggingCrackerId) {
       setDraggingCrackerId(null);
-      soundEngine.playDiwaliChime();
     }
   };
 
@@ -1179,6 +1171,7 @@ export function App() {
   const resetCourtyard = () => {
     soundEngine.stopAnaarSound();
     soundEngine.stopChakriSound();
+    soundEngine.stopLadiPerformance();
     setActiveAnaars([]);
     setGroundChakris([]);
     setFlyingRockets([]);
@@ -1186,7 +1179,6 @@ export function App() {
     setSpentMatchsticks([]);
     setActiveFuljhadis([]);
     setCrackers(createInitialCrackers());
-    soundEngine.playDiwaliChime();
   };
 
   // Random courtyard placement strictly outside the central Peacock Rangoli
@@ -1243,12 +1235,11 @@ export function App() {
     };
 
     setCrackers((prev) => [...prev, newCracker]);
-    soundEngine.playDiwaliChime(); // Gentle placement chime, NEVER auto-lit
+    // Selection sound completely removed per user request: silent placement
   };
 
   // Light All with Magic Spark button
   const lightAllCrackers = () => {
-    soundEngine.playDiwaliChime();
     crackers.forEach((c, idx) => {
       if (c.state === 'idle') {
         setTimeout(() => {
@@ -1632,7 +1623,6 @@ export function App() {
             className={`tray-item-btn diya-tray-action-btn ${isPlacingDiyaMode ? 'active-placing' : ''}`}
             onClick={() => {
               setIsPlacingDiyaMode((prev) => !prev);
-              soundEngine.playMatchStrike();
             }}
             title="Click to toggle Place Diya Mode - then click anywhere on screen to place Diyas!"
           >

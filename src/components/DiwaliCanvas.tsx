@@ -81,12 +81,15 @@ interface LightFlash {
 
 const getIsMobileOrLowRAM = (): boolean => {
   if (typeof window === 'undefined') return false;
-  return (
-    window.innerWidth < 768 ||
-    (typeof navigator !== 'undefined' &&
-      typeof navigator.hardwareConcurrency === 'number' &&
-      navigator.hardwareConcurrency <= 4)
+  const nav = typeof navigator !== 'undefined' ? (navigator as unknown as { hardwareConcurrency?: number; deviceMemory?: number }) : null;
+  const isSmallScreen = window.innerWidth < 768;
+  const isLowCores = Boolean(
+    nav && typeof nav.hardwareConcurrency === 'number' && nav.hardwareConcurrency <= 4
   );
+  const isLowMemory = Boolean(
+    nav && typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4
+  );
+  return isSmallScreen || isLowCores || isLowMemory;
 };
 
 export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
@@ -143,7 +146,7 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
   useEffect(() => {
     const isMobile = getIsMobileOrLowRAM();
     const stars: Star[] = [];
-    const count = isMobile ? 32 : 80;
+    const count = isMobile ? 24 : 80;
     for (let i = 0; i < count; i++) {
       stars.push({
         x: Math.random(),
@@ -185,10 +188,10 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
 
     // Adaptive particle limits based on device capability (low-RAM friendly)
     const isMobile = getIsMobileOrLowRAM();
-    const MAX_PARTICLES = isMobile ? 220 : 480;
+    const MAX_PARTICLES = isMobile ? 130 : 360;
     if (particlesRef.current.length > MAX_PARTICLES) {
       // Trim oldest particles to keep frame budget snappy and eliminate GC stutter
-      particlesRef.current.splice(0, particlesRef.current.length - (isMobile ? 150 : 320));
+      particlesRef.current.splice(0, particlesRef.current.length - (isMobile ? 80 : 220));
     }
 
     bombExplosions.forEach((exp) => {
@@ -350,7 +353,18 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
     handleResize();
     window.addEventListener('resize', handleResize);
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Free non-essential particles when tab is backgrounded
+        if (particlesRef.current.length > 20) {
+          particlesRef.current.length = 0;
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const render = () => {
+      const isMobile = getIsMobileOrLowRAM();
       const now = performance.now();
       const elapsedMs = lastFrameTimeRef.current === 0 ? 16.67 : Math.min(now - lastFrameTimeRef.current, 100);
       lastFrameTimeRef.current = now;
@@ -369,16 +383,22 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
         shakeRef.current *= Math.pow(0.88, dt);
       }
 
-      // Render Twinkling Stars
+      // Render Twinkling Stars (Zero string allocations inside 60FPS RAF loop)
       const stars = starsRef.current;
+      ctx.fillStyle = '#fffae6';
       for (let i = 0; i < stars.length; i++) {
         const s = stars[i];
-        const alpha = s.baseAlpha + Math.sin(now * s.twinkleSpeed + s.phase) * 0.3;
-        ctx.fillStyle = `rgba(255, 250, 230, ${Math.max(0.1, Math.min(1, alpha))})`;
-        ctx.beginPath();
-        ctx.arc(s.x * canvas.width, s.y * canvas.height, s.radius, 0, Math.PI * 2);
-        ctx.fill();
+        const alpha = Math.max(0.1, Math.min(0.9, s.baseAlpha + Math.sin(now * s.twinkleSpeed + s.phase) * 0.3));
+        ctx.globalAlpha = alpha;
+        if (isMobile) {
+          ctx.fillRect(s.x * canvas.width, s.y * canvas.height, s.radius * 1.5, s.radius * 1.5);
+        } else {
+          ctx.beginPath();
+          ctx.arc(s.x * canvas.width, s.y * canvas.height, s.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
+      ctx.globalAlpha = 1.0;
 
       // Render Floating Sky Lanterns (Akash Kandils)
       const lanterns = lanternsRef.current;
@@ -394,16 +414,25 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
           l.x = Math.random() * canvas.width;
         }
 
-        // Glow gradient
+        // Glow gradient (optimized on low-RAM/mobile to avoid 360 gradient compilations/sec)
         const rad = l.size;
-        const glow = ctx.createRadialGradient(l.x, l.y, 2, l.x, l.y, rad * 1.8);
-        glow.addColorStop(0, 'rgba(255, 220, 120, 0.9)');
-        glow.addColorStop(0.4, 'rgba(249, 115, 22, 0.4)');
-        glow.addColorStop(1, 'rgba(249, 115, 22, 0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(l.x, l.y, rad * 1.8, 0, Math.PI * 2);
-        ctx.fill();
+        if (!isMobile) {
+          const glow = ctx.createRadialGradient(l.x, l.y, 2, l.x, l.y, rad * 1.8);
+          glow.addColorStop(0, 'rgba(255, 220, 120, 0.9)');
+          glow.addColorStop(0.4, 'rgba(249, 115, 22, 0.4)');
+          glow.addColorStop(1, 'rgba(249, 115, 22, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(l.x, l.y, rad * 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = '#f97316';
+          ctx.beginPath();
+          ctx.arc(l.x, l.y, rad * 1.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1.0;
+        }
 
         // Lantern body
         ctx.save();
@@ -426,7 +455,6 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
       // -------------------------------------------------------------
       // 1. ANAAR (FLOWERPOT FOUNTAIN) - High-velocity vertical eruption
       // -------------------------------------------------------------
-      const isMobile = getIsMobileOrLowRAM();
       anaars.forEach((anaar) => {
         const elapsed = now - anaar.startTime;
         const totalDuration = anaar.duration || 15000;
@@ -790,7 +818,11 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
         if (rkt.flightTime >= maxFlight) {
           rkt.exploded = true;
           onRocketExplode(rkt);
-          soundEngine.playRocketBurst();
+          if (rkt.id.includes('skyshot')) {
+            soundEngine.playSkyshotBlast();
+          } else {
+            soundEngine.playRocketBurst();
+          }
 
           const burstColors = [
             rkt.color,
@@ -912,9 +944,9 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
       // -------------------------------------------------------------
       // 5. UPDATE & RENDER ALL PARTICLES (Delta-time integrated 60FPS loop)
       // -------------------------------------------------------------
-      const MAX_ACTIVE = isMobile ? 220 : 480;
+      const MAX_ACTIVE = isMobile ? 130 : 360;
       if (particlesRef.current.length > MAX_ACTIVE) {
-        particlesRef.current.splice(0, particlesRef.current.length - (isMobile ? 150 : 320));
+        particlesRef.current.splice(0, particlesRef.current.length - (isMobile ? 80 : 220));
       }
 
       const particles = particlesRef.current;
@@ -994,6 +1026,7 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

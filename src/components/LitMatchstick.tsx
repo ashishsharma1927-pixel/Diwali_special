@@ -50,22 +50,22 @@ export const LitMatchstick: React.FC<LitMatchstickProps> = ({
     }
   };
 
-  // Lighter double click handler
+  // Lighter single-click handler (1-click to pick up, 1-click to dock)
   const handleLighterClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const now = Date.now();
-    const timeSinceLast = now - lastLighterClickRef.current;
+    if (now - lastLighterClickRef.current < 200) return;
     lastLighterClickRef.current = now;
 
-    // Double click detected (within 400ms)
-    if (timeSinceLast < 400) {
-      if (activeTool === 'lighter') {
-        // Return lighter to stand
-        onPutDownLighter();
-      } else {
-        // Pick up the lighter
-        onPickUpLighter();
+    if (activeTool === 'lighter') {
+      // Put lighter back on stand
+      onPutDownLighter();
+    } else {
+      // If holding a match, put it down first, then pick up the lighter
+      if (matchState !== 'docked') {
+        onPutDownMatch();
       }
+      onPickUpLighter();
     }
   };
 
@@ -108,32 +108,27 @@ export const LitMatchstick: React.FC<LitMatchstickProps> = ({
           tabIndex={0}
           title={
             activeTool === 'lighter'
-              ? 'Lighter Active! Double-click here to place it back on the stand.'
-              : '⚡ Turbo Gas Lighter: Double-click to pick up and light multiple crackers non-stop!'
+              ? 'Lighter Active! Click here to place it back on the stand.'
+              : '⚡ Turbo Gas Lighter: 1-Click to pick up and light multiple crackers non-stop!'
           }
         >
           {activeTool !== 'lighter' ? (
             <div className="stand-lighter-preview">
-              {/* Resting Metal Torch Lighter */}
+              {/* Resting Metal Torch Lighter Graphic */}
               <div className="lighter-body">
                 <div className="lighter-metal-nozzle" />
                 <div className="lighter-ignition-trigger" />
                 <div className="lighter-grip-lines" />
-                <div className="lighter-brand-label">TURBO</div>
                 <div className="lighter-fuel-gauge" />
-              </div>
-              <div className="lighter-double-click-badge">
-                <span>⚡ Double-Click for Lighter</span>
               </div>
             </div>
           ) : (
             <div className="lighter-empty-stand">
               <div className="stand-hollow-slot" />
-              <div className="lighter-in-use-badge pulse-glow">
-                <span>🔥 Lighter in Hand (Double-Click to Dock)</span>
-              </div>
             </div>
           )}
+          {/* Prominent tool name */}
+          <span className="station-tool-label lighter-name-label">Lighter</span>
         </div>
 
         {/* --- MATCHBOX DOCK (BELOW THE LIGHTER) --- */}
@@ -143,21 +138,14 @@ export const LitMatchstick: React.FC<LitMatchstickProps> = ({
           onClick={handleMatchboxClick}
           role="button"
           tabIndex={0}
-          title={
-            matchState === 'docked'
-              ? 'Click to strike a fresh lit matchstick (Lights 1 Cracker)!'
-              : matchState === 'spent'
-              ? 'Click to take a fresh match from the box!'
-              : 'Matchbox: Holding lit match'
-          }
         >
           <div className="stand-matchbox">
+            <span className="station-matchbox-label">MATCHBOX</span>
             <div className="matchbox-striker-strip" />
-            <div className="matchbox-label">
-              <span className="box-brand">SAFETY MATCHES</span>
-              <span className="box-hindi">माचिस बॉक्स</span>
-            </div>
           </div>
+
+          {/* Prominent tool name below matchbox */}
+          <span className="station-tool-label matchbox-name-label">Matchbox</span>
 
           {/* Resting Matchstick Preview tucked inside matchbox slot */}
           {activeTool === 'match' && matchState === 'docked' && (
@@ -172,29 +160,10 @@ export const LitMatchstick: React.FC<LitMatchstickProps> = ({
             </div>
           )}
 
-          {/* Clean helper badge placed neatly on bottom or center */}
-          {activeTool === 'match' && matchState === 'docked' && (
-            <div className="matchbox-helper-tag">
-              <span>🔥 Tap for Match</span>
-            </div>
-          )}
-
-          {/* Badge when holding active or spent match */}
-          {activeTool === 'match' && matchState === 'lit' && (
+          {/* Cradle slot when holding match */}
+          {activeTool === 'match' && (matchState === 'lit' || matchState === 'spent') && (
             <div className="dock-landing-cradle">
               <div className="dock-cradle-slot" />
-              <div className="pickup-pulse-badge in-hand-badge">
-                <span>🕯️ 1 Cracker per Match</span>
-              </div>
-            </div>
-          )}
-
-          {activeTool === 'match' && matchState === 'spent' && (
-            <div className="dock-landing-cradle">
-              <div className="dock-cradle-slot" />
-              <div className="pickup-pulse-badge new-match-badge pulse-glow">
-                <span>🔥 Tap for New Match!</span>
-              </div>
             </div>
           )}
         </div>
@@ -244,18 +213,6 @@ export const LitMatchstick: React.FC<LitMatchstickProps> = ({
               <div className="wood-grain" />
             </div>
           </div>
-
-          {matchState === 'lit' && isNearFuse && (
-            <div className="ignite-hint-bubble">
-              <span>🔥 IGNITING FUSE!</span>
-            </div>
-          )}
-
-          {matchState === 'spent' && (
-            <div className="spent-match-hint-bubble">
-              <span>💨 Burnt out! Click screen to throw, or drop in Clean Bin 🗑️</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -293,13 +250,7 @@ export const LitMatchstick: React.FC<LitMatchstickProps> = ({
                 <div className="butane-liquid-level" />
               </div>
               <div className="device-grip-grooves" />
-              <span className="device-brand-print">DIWALI JET</span>
             </div>
-          </div>
-
-          {/* Contextual Lighter Guidance Toast */}
-          <div className="lighter-status-bubble">
-            <span>🔥 CONTINUOUS LIGHTER: Hover or click any cracker to ignite non-stop!</span>
           </div>
         </div>
       )}

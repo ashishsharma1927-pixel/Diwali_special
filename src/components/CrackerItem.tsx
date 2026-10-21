@@ -15,7 +15,7 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
   onCrackerPointerDown,
   isDragging,
 }) => {
-  const { id, type, name, hindiName, x, y, state, color, scale, bombVariant, duration } = cracker;
+  const { id, type, x, y, state, color, scale, bombVariant } = cracker;
 
   const handlePointerDown = (e: React.PointerEvent) => {
     // Left-click / touch to move or pop (or drag spent leftovers to the dustbin!)
@@ -38,7 +38,6 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
       onPointerDown={handlePointerDown}
       role="button"
       tabIndex={0}
-      title={`${name} (${hindiName}) - Click to pop or drag anywhere (or drop in dustbin when spent)!`}
     >
       {/* -------------------- 1. BOMBS (MIRCHI, SUTLI, ATOM, HYDROGEN, GOLA) -------------------- */}
       {type === 'bomb' && (
@@ -70,9 +69,7 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
               {bombVariant === 'mirchi' && (
                 <div className="mirchi-bomb-body">
                   <div className="mirchi-cap" />
-                  <div className="mirchi-tube">
-                    <span className="mirchi-label">MIRCHI 🌶️</span>
-                  </div>
+                  <div className="mirchi-tube" />
                 </div>
               )}
 
@@ -83,9 +80,6 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
                     <polygon points="37,4 71,64 3,64" fill="#15803d" stroke="#facc15" strokeWidth="2.5" />
                     <polygon points="37,13 63,58 11,58" fill="#dc2626" />
                     <circle cx="37" cy="42" r="12" fill="#facc15" />
-                    <text x="37" y="45" textAnchor="middle" fill="#000000" fontSize="7" fontWeight="900" letterSpacing="0.5">
-                      ATOM ⚡
-                    </text>
                   </svg>
                 </div>
               )}
@@ -96,9 +90,7 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
                   <div className="gola-sphere">
                     <div className="gola-mesh-h" />
                     <div className="gola-mesh-v" />
-                    <div className="gola-seal">
-                      <span>GOLA 100K 🥥</span>
-                    </div>
+                    <div className="gola-seal" />
                   </div>
                 </div>
               )}
@@ -109,11 +101,7 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
                   <div className="hydrogen-metal-rim top" />
                   <div className="hydrogen-casing">
                     <div className="jute-woven-grid" />
-                    <div className="hydrogen-seal">
-                      <span className="h-watt">50,000 WATT</span>
-                      <span className="h-name">HYDROGEN ⚡</span>
-                      <span className="h-sub">DANGER BOMB</span>
-                    </div>
+                    <div className="hydrogen-seal" />
                   </div>
                   <div className="hydrogen-metal-rim btm" />
                 </div>
@@ -131,11 +119,7 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
                   <div className="jute-woven-grid" />
                   <div className="bomb-seal-band">
                     <div className="band-gold-trim top" />
-                    <div className="band-content">
-                      <span className="seal-emblem">⚡</span>
-                      <span className="seal-brand">SUTLI BOMB</span>
-                      <span className="seal-watt">10,000 WATT</span>
-                    </div>
+                    <div className="band-content" />
                     <div className="band-gold-trim btm" />
                   </div>
                 </div>
@@ -270,9 +254,6 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
 
               {/* Lower Decorative Golden Band */}
               <rect x="16" y="88" width="68" height="12" rx="3" fill="#facc15" stroke="#78350f" strokeWidth="1.5" />
-              <text x="50" y="97" textAnchor="middle" fill="#78350f" fontSize="7" fontWeight="900" letterSpacing="1">
-                ROYAL ANAAR
-              </text>
 
               {/* Terracotta Pot Base */}
               <rect x="10" y="106" width="80" height="7" rx="3" fill="#78350f" />
@@ -329,10 +310,7 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
 
               {/* Red Firecracker Roll Mat (Matching authentic reference photo) */}
               <div className="ladi-strip-mat">
-                <div className="ladi-header-label">
-                  <span className="ladi-brand-rooster">🐓 मुर्गा छाप</span>
-                  <span className="ladi-count-tag">{cracker.totalLadiCount || 100} BOMBS</span>
-                </div>
+                <div className="ladi-header-label" />
                 {/* Rows of linked red firecrackers */}
                 <div className="ladi-tubes-grid">
                   {Array.from({ length: 24 }).map((_, i) => (
@@ -404,20 +382,13 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
 
               {/* Golden Festive Packaging Box */}
               <div className="skyshot-box-casing">
-                <div className="casing-foil-banner">
-                  <span className="casing-title">🎆 SKY SHOTS</span>
-                  <span className="casing-shots">
-                    {cracker.shotsRemaining !== undefined ? `${cracker.shotsRemaining} SHOTS LEFT` : `${cracker.totalShots || 12} SHOTS`}
-                  </span>
-                </div>
+                <div className="casing-foil-banner" />
               </div>
             </div>
           ) : (
             <div className="skyshot-spent-box">
               <div className="burnt-tube-sockets" />
-              <div className="charred-casing">
-                <span className="spent-box-label">SPENT SKY SHOT</span>
-              </div>
+              <div className="charred-casing" />
             </div>
           )}
         </div>
@@ -446,31 +417,6 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
           </div>
         </div>
       )}
-
-      {/* Cracker Label Tooltip */}
-      <div className="cracker-label-pill">
-        <span className="pill-name">{name}</span>
-        <span className="pill-hindi">{hindiName}</span>
-        {duration ? (
-          <span className="pill-timing-tag">⏱️ {Math.round(duration / 1000)}s</span>
-        ) : null}
-        {cracker.shotsRemaining !== undefined ? (
-          <span className="pill-shots-tag">🚀 {cracker.shotsRemaining} Shots Left</span>
-        ) : null}
-        {type === 'bomb' ? (
-          <span className="pill-blast-tag">
-            💥 {bombVariant === 'mirchi' ? 'Snappy Pop' : bombVariant === 'atom' ? 'Atom Blast' : bombVariant === 'hydrogen' ? '50,000W Heavy' : bombVariant === 'gola' ? 'Coconut Colossal' : 'Thunder Sutli'}
-          </span>
-        ) : null}
-        {type === 'ladi' ? (
-          <span className="pill-ladi-tag">
-            🧨 {cracker.totalLadiCount || 100} Firecrackers
-          </span>
-        ) : null}
-        {(state === 'exploded' || state === 'done') ? (
-          <span className="pill-dustbin-tag">🗑️ Drag to Dustbin to Clean</span>
-        ) : null}
-      </div>
     </div>
   );
 };
