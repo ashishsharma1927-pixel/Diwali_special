@@ -9,7 +9,7 @@ interface CrackerItemProps {
   isDragging?: boolean;
 }
 
-export const CrackerItem: React.FC<CrackerItemProps> = ({
+export const CrackerItem: React.FC<CrackerItemProps> = React.memo(({
   cracker,
   isMatchHovered,
   onCrackerPointerDown,
@@ -419,4 +419,4 @@ export const CrackerItem: React.FC<CrackerItemProps> = ({
       )}
     </div>
   );
-};
+});

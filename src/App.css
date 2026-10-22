@@ -3284,3 +3284,50 @@
     max-width: 180px;
   }
 }
+
+/* =========================================================================
+   LOW-END DEVICE & MOBILE HARDWARE ACCELERATION OPTIMIZATIONS
+   ========================================================================= */
+@media (max-width: 768px) {
+  /* Reduce multiple heavy box-shadows on mobile GPUs */
+  .fairy-bulb {
+    box-shadow: 0 0 6px currentColor;
+    animation: bulbGlow 2.4s ease-in-out infinite alternate;
+  }
+
+  .fairy-lights-string {
+    gap: 4px;
+  }
+
+  /* GPU layer promotion and paint isolation for smooth touch-dragging */
+  .cracker-node {
+    contain: layout style;
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
+  .peacock-rangoli-container {
+    contain: paint;
+  }
+
+  /* Simplify intense multi-layer text shadows on mobile screens */
+  .diwali-main-title {
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+  }
+
+  /* Optimize touch responsiveness */
+  .cracker-node,
+  .action-btn,
+  .tray-item-btn,
+  .festive-dustbin-container {
+    touch-action: manipulation;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

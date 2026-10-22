@@ -4,7 +4,7 @@ interface PeacockRangoliProps {
   className?: string;
 }
 
-export const PeacockRangoli: React.FC<PeacockRangoliProps> = ({ className = '' }) => {
+export const PeacockRangoli: React.FC<PeacockRangoliProps> = React.memo(({ className = '' }) => {
   return (
     <div className={`peacock-rangoli-container ${className}`}>
       <svg
@@ -333,4 +333,4 @@ export const PeacockRangoli: React.FC<PeacockRangoliProps> = ({ className = '' }
       </svg>
     </div>
   );
-};
+});

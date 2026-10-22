@@ -112,6 +112,8 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
   const handledExplosionsRef = useRef<Set<string>>(new Set());
   const shakeRef = useRef(0);
   const lastFrameTimeRef = useRef(0);
+  const isLowEndRef = useRef(getIsMobileOrLowRAM());
+  const lastDomCheckRef = useRef(0);
 
   // Keep dynamic props in ref so the animation loop runs uninterrupted
   const propsRef = useRef({
@@ -144,9 +146,9 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
 
   // Initialize background celestial stars & sky lanterns (optimized for device capability)
   useEffect(() => {
-    const isMobile = getIsMobileOrLowRAM();
+    const isMobile = isLowEndRef.current;
     const stars: Star[] = [];
-    const count = isMobile ? 24 : 80;
+    const count = isMobile ? 20 : 75;
     for (let i = 0; i < count; i++) {
       stars.push({
         x: Math.random(),
@@ -161,7 +163,7 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
 
     // Floating festive sky lanterns (Akash Kandils)
     const lanterns: FloatingLantern[] = [];
-    const lanternCount = isMobile ? 3 : 6;
+    const lanternCount = isMobile ? 2 : 5;
     for (let i = 0; i < lanternCount; i++) {
       lanterns.push({
         x: Math.random() * window.innerWidth,
@@ -169,29 +171,28 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
         vx: (Math.random() - 0.5) * 0.3,
         vy: -(Math.random() * 0.25 + 0.15),
         swayPhase: Math.random() * Math.PI * 2,
-        size: Math.random() * 10 + 16,
+        size: Math.random() * 8 + 14,
         color: ['#f97316', '#fbbf24', '#ef4444', '#ec4899'][i % 4],
       });
     }
     lanternsRef.current = lanterns;
   }, []);
 
-  // Spawn Bomb Explosion Particles when a bomb explodes
   // Spawn Bomb Explosion Particles when a bomb explodes (Tailored to variant & scale, optimized budget)
   useEffect(() => {
     if (bombExplosions.length === 0) return;
 
     // Prune handled cache to prevent memory buildup
-    if (handledExplosionsRef.current.size > 60) {
+    if (handledExplosionsRef.current.size > 50) {
       handledExplosionsRef.current.clear();
     }
 
     // Adaptive particle limits based on device capability (low-RAM friendly)
-    const isMobile = getIsMobileOrLowRAM();
-    const MAX_PARTICLES = isMobile ? 130 : 360;
+    const isMobile = isLowEndRef.current;
+    const MAX_PARTICLES = isMobile ? 95 : 280;
     if (particlesRef.current.length > MAX_PARTICLES) {
-      // Trim oldest particles to keep frame budget snappy and eliminate GC stutter
-      particlesRef.current.splice(0, particlesRef.current.length - (isMobile ? 80 : 220));
+      // Instant O(1) truncation: zero GC stutter and no array buffer allocations
+      particlesRef.current.length = MAX_PARTICLES;
     }
 
     bombExplosions.forEach((exp) => {
@@ -349,6 +350,7 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
     const handleResize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      isLowEndRef.current = getIsMobileOrLowRAM();
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -364,7 +366,7 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const render = () => {
-      const isMobile = getIsMobileOrLowRAM();
+      const isMobile = isLowEndRef.current;
       const now = performance.now();
       const elapsedMs = lastFrameTimeRef.current === 0 ? 16.67 : Math.min(now - lastFrameTimeRef.current, 100);
       lastFrameTimeRef.current = now;
@@ -460,17 +462,20 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
         const totalDuration = anaar.duration || 15000;
         if (elapsed > totalDuration) return;
 
-        // Track live coordinates if cracker is moved, dragged, or scrolled
+        // Throttled DOM check to eliminate forced layout reflows on every frame!
         let anaarX = anaar.x;
         let anaarY = anaar.y;
-        const el = document.getElementById(`cracker-${anaar.id}`);
-        if (el) {
-          const r = el.getBoundingClientRect();
-          if (r.width > 0 && r.height > 0) {
-            anaarX = r.left + r.width / 2;
-            anaarY = r.top + r.height * 0.15;
-            anaar.x = anaarX;
-            anaar.y = anaarY;
+        if (now - lastDomCheckRef.current > 250 || !anaarX) {
+          lastDomCheckRef.current = now;
+          const el = document.getElementById(`cracker-${anaar.id}`);
+          if (el) {
+            const r = el.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+              anaarX = r.left + r.width / 2;
+              anaarY = r.top + r.height * 0.15;
+              anaar.x = anaarX;
+              anaar.y = anaarY;
+            }
           }
         }
 
@@ -479,21 +484,21 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
 
         let intensity = 1.0;
         let speedMultiplier = 1.0;
-        let particlesPerFrame = Math.round((isMobile ? 7 : 16) * aScale);
+        let particlesPerFrame = Math.round((isMobile ? 5 : 16) * aScale);
 
         if (progress < 0.12) {
           intensity = progress / 0.12;
           speedMultiplier = 0.65 + 0.35 * intensity;
-          particlesPerFrame = Math.floor((isMobile ? 4 : (7 + 8 * intensity)) * aScale);
+          particlesPerFrame = Math.floor((isMobile ? 3 : (7 + 8 * intensity)) * aScale);
         } else if (progress > 0.82) {
           const coolDown = (progress - 0.82) / 0.18;
           intensity = Math.max(0.05, 1 - coolDown);
           speedMultiplier = Math.max(0.45, 1 - coolDown * 0.55);
-          particlesPerFrame = Math.floor((isMobile ? 5 : 14) * intensity * aScale);
+          particlesPerFrame = Math.floor((isMobile ? 3 : 14) * intensity * aScale);
         } else {
           intensity = 1.0;
           speedMultiplier = 1.35 * (0.8 + 0.3 * aScale);
-          particlesPerFrame = Math.round((isMobile ? 8 : 20) * aScale);
+          particlesPerFrame = Math.round((isMobile ? 5 : 18) * aScale);
         }
 
         const colors = [
@@ -547,22 +552,25 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
         const elapsed = now - f.startTime;
         if (elapsed > f.duration) return;
 
-        // Track live coordinates if fuljhadi sparkler is moved, dragged, or scrolled
+        // Throttled coordinate check
         let fx = f.x;
         let fy = f.y;
-        const el = document.getElementById(`cracker-${f.id}`);
-        if (el) {
-          const r = el.getBoundingClientRect();
-          if (r.width > 0 && r.height > 0) {
-            fx = r.left + r.width / 2;
-            fy = r.top + r.height * 0.22;
-            f.x = fx;
-            f.y = fy;
+        if (now - lastDomCheckRef.current > 250 || !fx) {
+          lastDomCheckRef.current = now;
+          const el = document.getElementById(`cracker-${f.id}`);
+          if (el) {
+            const r = el.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+              fx = r.left + r.width / 2;
+              fy = r.top + r.height * 0.22;
+              f.x = fx;
+              f.y = fy;
+            }
           }
         }
 
         // Branching starry iron sparks
-        const sparkCount = isMobile ? 4 : 8;
+        const sparkCount = isMobile ? 3 : 7;
         const sparkColors = ['#ffffff', '#fffbeb', '#fef08a', '#facc15', '#f97316', f.color];
         for (let i = 0; i < sparkCount; i++) {
           const angle = Math.random() * Math.PI * 2;
@@ -841,7 +849,8 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
           if (rkt.id.includes('skyshot')) {
             soundEngine.playSkyshotBlast();
           } else {
-            soundEngine.playRocketBurst();
+            soundEngine.stopRocketFlight(rkt.id);
+            soundEngine.playRocketBurst(rScale, rkt.variant);
           }
 
           const burstColors = [
@@ -951,22 +960,30 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
           continue;
         }
 
-        const grad = ctx.createRadialGradient(fl.x, fl.y, 4, fl.x, fl.y, fl.radius);
-        grad.addColorStop(0, `rgba(255, 255, 255, ${fl.alpha * 0.95})`);
-        grad.addColorStop(0.35, `rgba(254, 240, 138, ${fl.alpha * 0.6})`);
-        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(fl.x, fl.y, fl.radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (isMobile) {
+          ctx.globalAlpha = fl.alpha * 0.7;
+          ctx.fillStyle = fl.color;
+          ctx.fillRect(fl.x - fl.radius, fl.y - fl.radius, fl.radius * 2, fl.radius * 2);
+          ctx.globalAlpha = 1.0;
+        } else {
+          const grad = ctx.createRadialGradient(fl.x, fl.y, 4, fl.x, fl.y, fl.radius);
+          grad.addColorStop(0, `rgba(255, 255, 255, ${fl.alpha * 0.95})`);
+          grad.addColorStop(0.35, `rgba(254, 240, 138, ${fl.alpha * 0.6})`);
+          grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(fl.x, fl.y, fl.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
 
       // -------------------------------------------------------------
       // 5. UPDATE & RENDER ALL PARTICLES (Delta-time integrated 60FPS loop)
       // -------------------------------------------------------------
-      const MAX_ACTIVE = isMobile ? 130 : 360;
+      const MAX_ACTIVE = isMobile ? 95 : 280;
       if (particlesRef.current.length > MAX_ACTIVE) {
-        particlesRef.current.splice(0, particlesRef.current.length - (isMobile ? 80 : 220));
+        // Instant O(1) truncation: zero memory copies and no GC stutter
+        particlesRef.current.length = MAX_ACTIVE;
       }
 
       const particles = particlesRef.current;
@@ -1020,7 +1037,7 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
             const h = p.height || 4;
             ctx.fillRect(-w / 2, -h / 2, w, h);
             ctx.restore();
-          } else if (p.isSpark || isMobile || p.size <= 3.8) {
+          } else if (isMobile || p.isSpark || p.size <= 4.0) {
             // High-speed GPU quads: completely bypasses expensive arc() triangulation on mobile/low-RAM!
             ctx.fillRect(p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
           } else {

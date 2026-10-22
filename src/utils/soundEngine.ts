@@ -1,5 +1,6 @@
 import ladiSoundUrl from '../sounds/murgachap ladi.mp3';
 import skyshotSoundUrl from '../sounds/skyshots.mp3';
+import bombSoundUrl from '../sounds/bomb.mp3';
 
 // Web Audio API Synthesizer for Authentic Diwali Crackers Experience
 // Offline-first with integrated authentic fireworks audio recordings
@@ -31,6 +32,24 @@ class DiwaliSoundEngine {
   private skyshotPeaks: number[] = [];
   private isSkyshotLoading: boolean = false;
   private skyshotPeakIndex: number = 0;
+
+  // Authentic Bomb Audio Recording Buffer (from src/sounds/bomb.mp3)
+  private bombAudioBuffer: AudioBuffer | null = null;
+  private isBombLoading: boolean = false;
+
+  // Active Rocket Flight Instances (tracks screeching flight whoosh & ascending whistle per flying rocket)
+  private activeRocketFlights: Map<
+    string,
+    {
+      carrier: OscillatorNode;
+      mod: OscillatorNode;
+      carrierGain: GainNode;
+      noiseSource: AudioBufferSourceNode | null;
+      noiseGain: GainNode;
+      masterGain: GainNode;
+      stopTimer: ReturnType<typeof setTimeout>;
+    }
+  > = new Map();
 
   // High-precision transient peak finder to sync cracker explosions with real audio
   private extractPeaks(buffer: AudioBuffer, minDistanceSec: number = 0.08, thresholdRatio: number = 0.22): number[] {
@@ -64,7 +83,7 @@ class DiwaliSoundEngine {
     return peaks;
   }
 
-  // Preload and decode user's audio recordings (murgachap ladi.mp3 & skyshots.mp3)
+  // Preload and decode user's audio recordings (murgachap ladi.mp3, skyshots.mp3, & bomb.mp3)
   public async preloadAudioFiles() {
     this.init();
     if (!this.ctx) return;
@@ -96,6 +115,20 @@ class DiwaliSoundEngine {
         console.warn('Skyshots audio load notice:', e);
       } finally {
         this.isSkyshotLoading = false;
+      }
+    }
+
+    // 3. Decode Authentic Bomb Audio
+    if (!this.bombAudioBuffer && !this.isBombLoading) {
+      this.isBombLoading = true;
+      try {
+        const resp = await fetch(bombSoundUrl);
+        const arrayBuf = await resp.arrayBuffer();
+        this.bombAudioBuffer = await this.ctx.decodeAudioData(arrayBuf);
+      } catch (e) {
+        console.warn('Bomb audio load notice:', e);
+      } finally {
+        this.isBombLoading = false;
       }
     }
   }
@@ -211,6 +244,7 @@ class DiwaliSoundEngine {
       this.stopDrone();
       this.stopAnaarSound();
       this.stopChakriSound();
+      this.stopAllRocketFlights();
     } else {
       this.startDrone();
       this.playDiwaliChime();
@@ -843,92 +877,195 @@ class DiwaliSoundEngine {
   }
 
   // Authentic Multi-Layer Bomb Explosion (Sutli, Atom, Mirchi, Hydrogen, or Gola Bomb)
-  public playBombExplosion(variant: import('../types/diwali').BombVariant = 'sutli') {
+  // Merges real audio recording from src/sounds/bomb.mp3 with physical shockwave & sub-bass synthesis
+  // Perceived volume and concussive intensity get progressively louder and louder according to bomb type!
+  public playBombExplosion(
+    variant: import('../types/diwali').BombVariant = 'sutli',
+    scale: number = 1.0
+  ) {
     if (this.isMuted) return;
     this.init();
     if (!this.ctx) return;
 
+    if (!this.bombAudioBuffer && !this.isBombLoading) {
+      this.preloadAudioFiles();
+    }
+
     try {
       const now = this.ctx.currentTime;
 
-      // 1. Variant acoustic physics profiles (NO synthetic sliding pitch tones!)
-      let crackFreq = 2500;       // Bandpass center for sharp paper/jute cord rupture
-      let crackQ = 3.2;
-      let crackVol = 1.35;
-      let bodyCutoff = 72;        // Lowpass resonance for gunpowder turbulence
-      let bodyVol = 1.45;
-      let subKickFreq = 36;       // Subsonic chest thump frequency (strictly <= 45Hz)
-      let subKickVol = 1.20;
-      let subKickDur = 0.068;     // Short impulse: zero audible pitch sliding!
-      let duration = 1.9;
-      let distortionAmount = 75;
-      let flutterTailVol = 0.40;
+      // 1. Variant acoustic profiles & sample playback: LOUDER AND LOUDER per bomb type!
+      // Hierarchy of loudness:
+      // Mirchi Bomb (snappy pop) < Atom Bomb (metallic crack) < Sutli Bomb (King of Diwali) < Hydrogen Mega Bomb (deep earthquake) < Coconut Gola Bomb (colossal fiery blast)
+      let sampleVol = 2.4;
+      let samplePlaybackRate = 0.98;
+      let sampleFilterType: BiquadFilterType = 'peaking';
+      let sampleFilterFreq = 650;
+      let sampleFilterQ = 1.5;
+      let sampleFilterGain = 3;
+
+      let crackFreq = 2500;
+      let crackQ = 3.0;
+      let crackVol = 2.1;
+      let bodyCutoff = 72;
+      let bodyVol = 2.0;
+      let subKickFreq = 35;
+      let subKickVol = 1.5;
+      let subKickDur = 0.070;
+      let duration = 2.1;
+      let distortionAmount = 78;
+      let flutterTailVol = 0.60;
+      let masterGain = 1.9;
 
       if (variant === 'mirchi') {
-        // Mirchi Bomb: Sharp, snappy, lightning-fast firecracker crack
+        // Mirchi Bomb: Mini snappy pop, sharp paper crack, light crisp blast
+        sampleVol = 0.95;
+        samplePlaybackRate = 1.22;
+        sampleFilterType = 'highpass';
+        sampleFilterFreq = 220;
+        sampleFilterQ = 1.0;
+        sampleFilterGain = 0;
+
         crackFreq = 4200;
         crackQ = 2.4;
-        crackVol = 1.05;
-        bodyCutoff = 130;
+        crackVol = 1.1;
+        bodyCutoff = 135;
         bodyVol = 0.85;
-        subKickFreq = 50;
+        subKickFreq = 52;
         subKickVol = 0.65;
         subKickDur = 0.045;
-        duration = 0.7;
+        duration = 0.75;
         distortionAmount = 45;
-        flutterTailVol = 0.20;
+        flutterTailVol = 0.22;
+        masterGain = 1.0;
       } else if (variant === 'atom') {
-        // Atom Bomb: Fierce concussive crack + dense metallic acoustic pressure
+        // Atom Bomb: Concussive metallic triangle packet, sharp acoustic pressure
+        sampleVol = 1.6;
+        samplePlaybackRate = 1.08;
+        sampleFilterType = 'peaking';
+        sampleFilterFreq = 2400;
+        sampleFilterQ = 2.0;
+        sampleFilterGain = 4;
+
         crackFreq = 3400;
         crackQ = 3.6;
-        crackVol = 1.35;
+        crackVol = 1.65;
         bodyCutoff = 100;
-        bodyVol = 1.25;
+        bodyVol = 1.4;
         subKickFreq = 42;
-        subKickVol = 0.95;
+        subKickVol = 1.05;
         subKickDur = 0.055;
-        duration = 1.3;
+        duration = 1.35;
         distortionAmount = 65;
-        flutterTailVol = 0.30;
+        flutterTailVol = 0.38;
+        masterGain = 1.4;
       } else if (variant === 'sutli') {
         // Sutli Bomb: The real King of Diwali! Thick jute cord blast, heavy acoustic wallop
+        sampleVol = 2.4;
+        samplePlaybackRate = 0.98;
+        sampleFilterType = 'peaking';
+        sampleFilterFreq = 650;
+        sampleFilterQ = 1.5;
+        sampleFilterGain = 3;
+
         crackFreq = 2500;
         crackQ = 3.0;
-        crackVol = 1.45;
+        crackVol = 2.1;
         bodyCutoff = 72;
-        bodyVol = 1.50;
+        bodyVol = 2.0;
         subKickFreq = 35;
-        subKickVol = 1.25;
+        subKickVol = 1.5;
         subKickDur = 0.070;
-        duration = 2.0;
-        distortionAmount = 75;
-        flutterTailVol = 0.45;
+        duration = 2.1;
+        distortionAmount = 78;
+        flutterTailVol = 0.60;
+        masterGain = 1.9;
       } else if (variant === 'hydrogen') {
         // Hydrogen Bomb: Massive seismic low-end detonation with deep rumbling shockwave
+        sampleVol = 3.4;
+        samplePlaybackRate = 0.84;
+        sampleFilterType = 'lowshelf';
+        sampleFilterFreq = 160;
+        sampleFilterQ = 1.2;
+        sampleFilterGain = 6;
+
         crackFreq = 2050;
         crackQ = 2.8;
-        crackVol = 1.45;
+        crackVol = 2.8;
         bodyCutoff = 56;
-        bodyVol = 1.55;
+        bodyVol = 2.7;
         subKickFreq = 30;
-        subKickVol = 1.30;
+        subKickVol = 2.1;
         subKickDur = 0.085;
-        duration = 2.4;
-        distortionAmount = 85;
-        flutterTailVol = 0.50;
+        duration = 2.7;
+        distortionAmount = 90;
+        flutterTailVol = 0.85;
+        masterGain = 2.5;
       } else if (variant === 'gola') {
-        // Coconut Gola Bomb: Deep hollow wooden boom with heavy air displacement
+        // Coconut Gola Bomb: Deepest hollow wooden boom, colossal air displacement, loudest blast!
+        sampleVol = 4.4;
+        samplePlaybackRate = 0.72;
+        sampleFilterType = 'lowshelf';
+        sampleFilterFreq = 140;
+        sampleFilterQ = 1.2;
+        sampleFilterGain = 8;
+
         crackFreq = 1750;
         crackQ = 2.5;
-        crackVol = 1.30;
-        bodyCutoff = 64;
-        bodyVol = 1.50;
-        subKickFreq = 28;
-        subKickVol = 1.25;
-        subKickDur = 0.080;
-        duration = 2.5;
-        distortionAmount = 80;
-        flutterTailVol = 0.40;
+        crackVol = 3.5;
+        bodyCutoff = 50;
+        bodyVol = 3.4;
+        subKickFreq = 25;
+        subKickVol = 2.7;
+        subKickDur = 0.095;
+        duration = 3.3;
+        distortionAmount = 95;
+        flutterTailVol = 1.15;
+        masterGain = 3.2;
+      }
+
+      const scaleMultiplier = Math.max(0.6, Math.min(2.0, scale));
+      const effectiveMasterGain = masterGain * (0.6 + 0.4 * scaleMultiplier);
+
+      // Dedicated dynamics compressor / limiter: combines real recording with synth layers
+      // Prevents harsh clipping while enabling massive perceived acoustic loudness and punch
+      const masterCompressor = this.ctx.createDynamicsCompressor();
+      masterCompressor.threshold.setValueAtTime(-14, now);
+      masterCompressor.knee.setValueAtTime(8, now);
+      masterCompressor.ratio.setValueAtTime(14, now);
+      masterCompressor.attack.setValueAtTime(0.001, now);
+      masterCompressor.release.setValueAtTime(0.24, now);
+
+      const masterBus = this.ctx.createGain();
+      masterBus.gain.setValueAtTime(effectiveMasterGain, now);
+
+      masterCompressor.connect(masterBus);
+      masterBus.connect(this.ctx.destination);
+
+      // LAYER 0: AUTHENTIC RECORDED AUDIO (src/sounds/bomb.mp3)
+      if (this.bombAudioBuffer) {
+        const bombSource = this.ctx.createBufferSource();
+        bombSource.buffer = this.bombAudioBuffer;
+        bombSource.playbackRate.setValueAtTime(samplePlaybackRate, now);
+
+        const sampleFilter = this.ctx.createBiquadFilter();
+        sampleFilter.type = sampleFilterType;
+        sampleFilter.frequency.setValueAtTime(sampleFilterFreq, now);
+        if (sampleFilterQ) sampleFilter.Q.setValueAtTime(sampleFilterQ, now);
+        if (sampleFilterGain) sampleFilter.gain.setValueAtTime(sampleFilterGain, now);
+
+        const sampleGainNode = this.ctx.createGain();
+        sampleGainNode.gain.setValueAtTime(sampleVol, now);
+        sampleGainNode.gain.exponentialRampToValueAtTime(
+          0.001,
+          now + Math.min(this.bombAudioBuffer.duration / samplePlaybackRate, duration)
+        );
+
+        bombSource.connect(sampleFilter);
+        sampleFilter.connect(sampleGainNode);
+        sampleGainNode.connect(masterCompressor);
+
+        bombSource.start(now);
       }
 
       // LAYER 1: Supersonic Casing Rupture Shockwave Crack (< 45ms)
@@ -948,7 +1085,7 @@ class DiwaliSoundEngine {
 
         crackSource.connect(crackFilter);
         crackFilter.connect(crackGain);
-        crackGain.connect(this.ctx.destination);
+        crackGain.connect(masterCompressor);
         crackSource.start(now);
       }
 
@@ -976,7 +1113,7 @@ class DiwaliSoundEngine {
         bodySource.connect(bodyFilter);
         bodyFilter.connect(waveShaper);
         waveShaper.connect(bodyGain);
-        bodyGain.connect(this.ctx.destination);
+        bodyGain.connect(masterCompressor);
 
         bodySource.start(now);
         bodySource.stop(now + 0.40);
@@ -993,7 +1130,7 @@ class DiwaliSoundEngine {
       subKickGain.gain.exponentialRampToValueAtTime(0.0001, now + subKickDur);
 
       subKick.connect(subKickGain);
-      subKickGain.connect(this.ctx.destination);
+      subKickGain.connect(masterCompressor);
       subKick.start(now);
       subKick.stop(now + subKickDur + 0.01);
 
@@ -1015,7 +1152,7 @@ class DiwaliSoundEngine {
 
         tailSource.connect(tailFilter);
         tailFilter.connect(tailGain);
-        tailGain.connect(this.ctx.destination);
+        tailGain.connect(masterCompressor);
 
         tailSource.start(now + 0.02);
         tailSource.stop(now + duration * 0.70);
@@ -1107,93 +1244,262 @@ class DiwaliSoundEngine {
     }
   }
 
-  // Rocket Launch (Authentic Screaming Potassium-Benzoate Whistle & Jet Whoosh)
-  public playRocketLaunch() {
+  // Rocket Ascending Flight Sound (Continuous Screaming Whistle & Exhaust Jet Rush)
+  public startRocketFlight(
+    rocketId: string = 'default',
+    durationSec: number = 3.0,
+    variant?: import('../types/diwali').RocketVariant
+  ) {
     if (this.isMuted) return;
     this.init();
     if (!this.ctx) return;
 
+    // If an instance with this ID already exists, stop it cleanly first
+    this.stopRocketFlight(rocketId);
+
     try {
       const now = this.ctx.currentTime;
-      const duration = 1.6;
+      // Adjust flight acoustic duration matching rocket variant
+      let actualDuration = Math.max(1.5, durationSec);
+      let baseFreq = 620;
+      let apexFreq = 4200;
+      let whistleVol = 0.38;
+      let jetVol = 0.42;
 
-      // Authentic screaming rocket whistle:
-      // Modulator oscillator creates the iconic shrill flutter; carrier sweeps high into the sky!
+      if (variant === 'mini-whistle-3s') {
+        baseFreq = 850;
+        apexFreq = 4800;
+        whistleVol = 0.44;
+        jetVol = 0.34;
+      } else if (variant === 'heavy-missile-8s') {
+        baseFreq = 480;
+        apexFreq = 3600;
+        whistleVol = 0.35;
+        jetVol = 0.52;
+      }
+
+      // Master gain for this rocket's flight audio instance
+      const masterFlightGain = this.ctx.createGain();
+      masterFlightGain.gain.setValueAtTime(0.01, now);
+      masterFlightGain.gain.linearRampToValueAtTime(1.0, now + 0.12);
+      masterFlightGain.connect(this.ctx.destination);
+
+      // 1. Iconic Screaming Potassium-Benzoate Whistle
       const carrier = this.ctx.createOscillator();
       const carrierGain = this.ctx.createGain();
       carrier.type = 'sawtooth';
-      carrier.frequency.setValueAtTime(650, now);
-      carrier.frequency.exponentialRampToValueAtTime(2400, now + 0.8);
-      carrier.frequency.exponentialRampToValueAtTime(4200, now + duration);
+      carrier.frequency.setValueAtTime(baseFreq, now);
+      carrier.frequency.exponentialRampToValueAtTime(baseFreq * 2.8, now + actualDuration * 0.45);
+      carrier.frequency.exponentialRampToValueAtTime(apexFreq, now + actualDuration);
 
-      // Shrill whistle vibrato / combustion jitter modulation
+      // Rapid combustion jitter vibrato (FM modulation creates authentic high-speed scream)
       const mod = this.ctx.createOscillator();
       const modGain = this.ctx.createGain();
       mod.type = 'sine';
-      mod.frequency.setValueAtTime(130, now);
-      modGain.gain.setValueAtTime(150, now);
+      mod.frequency.setValueAtTime(135, now);
+      modGain.gain.setValueAtTime(160, now);
       mod.connect(carrier.frequency);
 
-      // Resonant formant filter for piercing acoustic whistle
+      // Resonant formant filter for piercing whistle
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(1200, now);
-      filter.frequency.exponentialRampToValueAtTime(3900, now + duration);
-      filter.Q.setValueAtTime(5.2, now);
+      filter.frequency.setValueAtTime(baseFreq * 1.8, now);
+      filter.frequency.exponentialRampToValueAtTime(apexFreq * 0.9, now + actualDuration);
+      filter.Q.setValueAtTime(4.8, now);
 
-      carrierGain.gain.setValueAtTime(0.02, now);
-      carrierGain.gain.exponentialRampToValueAtTime(0.34, now + 0.35);
-      carrierGain.gain.exponentialRampToValueAtTime(0.28, now + 1.1);
-      carrierGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      carrierGain.gain.setValueAtTime(0.05, now);
+      carrierGain.gain.linearRampToValueAtTime(whistleVol, now + 0.25);
+      carrierGain.gain.setValueAtTime(whistleVol * 0.95, now + actualDuration * 0.8);
+      carrierGain.gain.exponentialRampToValueAtTime(0.001, now + actualDuration + 0.1);
 
       carrier.connect(filter);
       filter.connect(carrierGain);
-      carrierGain.connect(this.ctx.destination);
+      carrierGain.connect(masterFlightGain);
 
       mod.start(now);
       carrier.start(now);
-      mod.stop(now + duration + 0.05);
-      carrier.stop(now + duration + 0.05);
 
-      // Violent high-pressure exhaust gas roar
+      // 2. High-Pressure Burning Propellant Jet Exhaust Roar
+      let noiseSource: AudioBufferSourceNode | null = null;
+      const noiseGain = this.ctx.createGain();
       const noiseBuffer = this.getSharedNoiseBuffer();
       if (noiseBuffer) {
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        noise.loop = true;
+        noiseSource = this.ctx.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        noiseSource.loop = true;
 
         const noiseFilter = this.ctx.createBiquadFilter();
         noiseFilter.type = 'lowpass';
-        noiseFilter.frequency.setValueAtTime(900, now);
-        noiseFilter.frequency.exponentialRampToValueAtTime(2800, now + 0.6);
-        noiseFilter.frequency.exponentialRampToValueAtTime(600, now + duration);
+        noiseFilter.frequency.setValueAtTime(800, now);
+        noiseFilter.frequency.exponentialRampToValueAtTime(2800, now + actualDuration * 0.5);
+        noiseFilter.frequency.exponentialRampToValueAtTime(900, now + actualDuration);
 
-        const noiseGain = this.ctx.createGain();
         noiseGain.gain.setValueAtTime(0.08, now);
-        noiseGain.gain.linearRampToValueAtTime(0.38, now + 0.4);
-        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        noiseGain.gain.linearRampToValueAtTime(jetVol, now + 0.3);
+        noiseGain.gain.setValueAtTime(jetVol * 0.9, now + actualDuration * 0.85);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + actualDuration + 0.1);
 
-        noise.connect(noiseFilter);
+        noiseSource.connect(noiseFilter);
         noiseFilter.connect(noiseGain);
-        noiseGain.connect(this.ctx.destination);
-        noise.start(now);
-        noise.stop(now + duration + 0.05);
+        noiseGain.connect(masterFlightGain);
+        noiseSource.start(now);
       }
+
+      // Safety timeout to automatically clean up resources if not stopped at burst
+      const stopTimer = setTimeout(() => {
+        this.stopRocketFlight(rocketId);
+      }, (actualDuration + 0.2) * 1000);
+
+      this.activeRocketFlights.set(rocketId, {
+        carrier,
+        mod,
+        carrierGain,
+        noiseSource,
+        noiseGain,
+        masterGain: masterFlightGain,
+        stopTimer,
+      });
     } catch {
       // Audio safety
     }
   }
 
-  // Rocket Aerial Sky Burst (Authentic Sky Boom & Cascading Willow Sparkles)
-  public playRocketBurst() {
+  // Gracefully stops the flying sound when the rocket detonates in the sky
+  public stopRocketFlight(rocketId: string = 'default') {
+    const flight = this.activeRocketFlights.get(rocketId);
+    if (!flight) return;
+
+    this.activeRocketFlights.delete(rocketId);
+    clearTimeout(flight.stopTimer);
+
+    if (this.ctx) {
+      try {
+        const now = this.ctx.currentTime;
+        // Fast 30ms ramp-out to transition seamlessly into the explosion with zero clicks
+        flight.masterGain.gain.setValueAtTime(flight.masterGain.gain.value, now);
+        flight.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.035);
+
+        setTimeout(() => {
+          try {
+            flight.carrier.stop();
+            flight.mod.stop();
+            flight.noiseSource?.stop();
+            flight.carrier.disconnect();
+            flight.mod.disconnect();
+            flight.noiseSource?.disconnect();
+            flight.masterGain.disconnect();
+          } catch {
+            // noop
+          }
+        }, 50);
+      } catch {
+        // noop
+      }
+    }
+  }
+
+  // Stops all flying rockets (e.g., on mute, screen reset, or arena clean)
+  public stopAllRocketFlights() {
+    this.activeRocketFlights.forEach((_, id) => {
+      this.stopRocketFlight(id);
+    });
+    this.activeRocketFlights.clear();
+  }
+
+  // Rocket Launch Trigger (Plays screaming ascent flight sound)
+  public playRocketLaunch(
+    durationSec: number = 2.8,
+    variant?: import('../types/diwali').RocketVariant
+  ) {
+    this.startRocketFlight('last-launch', durationSec, variant);
+  }
+
+  // Rocket Aerial Sky Burst (Merged with Authentic bomb.mp3 Audio & Sparkling Willow Cascades)
+  public playRocketBurst(
+    scale: number = 1.0,
+    variant?: import('../types/diwali').RocketVariant
+  ) {
     if (this.isMuted) return;
     this.init();
     if (!this.ctx) return;
 
+    if (!this.bombAudioBuffer && !this.isBombLoading) {
+      this.preloadAudioFiles();
+    }
+
     try {
       const now = this.ctx.currentTime;
 
-      // 1. Distant atmospheric supersonic sky crack
+      // Celestial blast profiles tailored to rocket type
+      let samplePlaybackRate = 1.02;
+      let sampleVol = 2.4;
+      let crackVol = 1.6;
+      let crackFreq = 2600;
+      let subBoomVol = 1.5;
+      let subBoomFreq = 54;
+      let willowVol = 0.45;
+
+      if (variant === 'mini-whistle-3s') {
+        // Mini Whistle: Snappier, higher altitude celestial pop
+        samplePlaybackRate = 1.15;
+        sampleVol = 1.8;
+        crackVol = 1.3;
+        crackFreq = 3200;
+        subBoomVol = 1.0;
+        subBoomFreq = 64;
+        willowVol = 0.35;
+      } else if (variant === 'heavy-missile-8s') {
+        // Heavy Missile: Deep, seismic, massive high-altitude detonation
+        samplePlaybackRate = 0.85;
+        sampleVol = 3.2;
+        crackVol = 2.1;
+        crackFreq = 2050;
+        subBoomVol = 2.1;
+        subBoomFreq = 42;
+        willowVol = 0.60;
+      }
+
+      const effectiveScale = Math.max(0.6, Math.min(2.0, scale));
+      const masterGainLevel = (0.75 + 0.35 * effectiveScale);
+
+      // Mastering compressor: gives massive punch and prevents distortion
+      const masterCompressor = this.ctx.createDynamicsCompressor();
+      masterCompressor.threshold.setValueAtTime(-14, now);
+      masterCompressor.knee.setValueAtTime(8, now);
+      masterCompressor.ratio.setValueAtTime(12, now);
+      masterCompressor.attack.setValueAtTime(0.001, now);
+      masterCompressor.release.setValueAtTime(0.24, now);
+
+      const masterBus = this.ctx.createGain();
+      masterBus.gain.setValueAtTime(masterGainLevel, now);
+      masterCompressor.connect(masterBus);
+      masterBus.connect(this.ctx.destination);
+
+      // LAYER 0: AUTHENTIC RECORDED AUDIO (src/sounds/bomb.mp3 for the Rocket Sky Burst!)
+      if (this.bombAudioBuffer) {
+        const bombSource = this.ctx.createBufferSource();
+        bombSource.buffer = this.bombAudioBuffer;
+        bombSource.playbackRate.setValueAtTime(samplePlaybackRate, now);
+
+        // High-altitude atmospheric peaking filter for open-air sky acoustic projection
+        const skyFilter = this.ctx.createBiquadFilter();
+        skyFilter.type = 'peaking';
+        skyFilter.frequency.setValueAtTime(1400, now);
+        skyFilter.Q.setValueAtTime(1.2, now);
+        skyFilter.gain.setValueAtTime(3.5, now);
+
+        const sampleGain = this.ctx.createGain();
+        sampleGain.gain.setValueAtTime(sampleVol, now);
+        sampleGain.gain.exponentialRampToValueAtTime(0.001, now + 1.25);
+
+        bombSource.connect(skyFilter);
+        skyFilter.connect(sampleGain);
+        sampleGain.connect(masterCompressor);
+
+        bombSource.start(now);
+      }
+
+      // LAYER 1: Distant Atmospheric Supersonic Sky Crack
       const crackBuffer = this.createCrackImpulseBuffer(0.048);
       if (crackBuffer) {
         const crack = this.ctx.createBufferSource();
@@ -1201,20 +1507,20 @@ class DiwaliSoundEngine {
 
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(2200, now);
+        filter.frequency.setValueAtTime(crackFreq, now);
         filter.Q.setValueAtTime(2.6, now);
 
         const crackGain = this.ctx.createGain();
-        crackGain.gain.setValueAtTime(0.55, now);
+        crackGain.gain.setValueAtTime(crackVol, now);
         crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.046);
 
         crack.connect(filter);
         filter.connect(crackGain);
-        crackGain.connect(this.ctx.destination);
+        crackGain.connect(masterCompressor);
         crack.start(now);
       }
 
-      // 2. Low rolling atmospheric sky boom (Brownian deflagration, NO sliding synth tone)
+      // LAYER 2: Low Rolling Atmospheric Sky Boom (Brownian deflagration)
       const brownian = this.getBrownianNoiseBuffer();
       if (brownian) {
         const sub = this.ctx.createBufferSource();
@@ -1223,30 +1529,30 @@ class DiwaliSoundEngine {
 
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(110, now);
-        filter.frequency.exponentialRampToValueAtTime(52, now + 0.42);
+        filter.frequency.setValueAtTime(subBoomFreq * 2.2, now);
+        filter.frequency.exponentialRampToValueAtTime(subBoomFreq * 0.75, now + 0.45);
         filter.Q.setValueAtTime(2.6, now);
 
         const subGain = this.ctx.createGain();
-        subGain.gain.setValueAtTime(0.52, now);
-        subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+        subGain.gain.setValueAtTime(subBoomVol, now);
+        subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.58);
 
         sub.connect(filter);
         filter.connect(subGain);
-        subGain.connect(this.ctx.destination);
+        subGain.connect(masterCompressor);
         sub.start(now);
-        sub.stop(now + 0.55);
+        sub.stop(now + 0.62);
       }
 
-      // Cascading sparkling willow peony crackle (drifting down over 1.4s)
-      const willowSize = Math.floor(this.ctx.sampleRate * 1.4);
+      // LAYER 3: Cascading Sparkling Willow / Peony Crackle (Stars drifting down)
+      const willowSize = Math.floor(this.ctx.sampleRate * 1.5);
       const willowBuffer = this.ctx.createBuffer(1, willowSize, this.ctx.sampleRate);
       const willowData = willowBuffer.getChannelData(0);
       for (let i = 0; i < willowSize; i++) {
         const progress = i / willowSize;
-        const prob = 0.88 - progress * 0.1;
-        const amp = Math.pow(1 - progress, 1.2);
-        willowData[i] = Math.random() > prob ? (Math.random() * 2 - 1) * 1.8 * amp : (Math.random() * 0.08 - 0.04);
+        const prob = 0.86 - progress * 0.12;
+        const amp = Math.pow(1 - progress, 1.15);
+        willowData[i] = Math.random() > prob ? (Math.random() * 2 - 1) * 1.9 * amp : (Math.random() * 0.06 - 0.03);
       }
 
       const willowSource = this.ctx.createBufferSource();
@@ -1254,16 +1560,19 @@ class DiwaliSoundEngine {
 
       const willowFilter = this.ctx.createBiquadFilter();
       willowFilter.type = 'highpass';
-      willowFilter.frequency.setValueAtTime(3200, now);
+      willowFilter.frequency.setValueAtTime(3000, now);
 
       const willowGain = this.ctx.createGain();
-      willowGain.gain.setValueAtTime(0.28, now + 0.08);
-      willowGain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+      willowGain.gain.setValueAtTime(willowVol, now + 0.08);
+      willowGain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
 
       willowSource.connect(willowFilter);
       willowFilter.connect(willowGain);
-      willowGain.connect(this.ctx.destination);
+      willowGain.connect(masterCompressor);
       willowSource.start(now + 0.08);
+
+      // LAYER 4: Open Sky Distant Reverb Echo
+      this.createCourtyardReverb(now, 2.4, 0.28 * subBoomVol);
     } catch {
       // Audio safety
     }

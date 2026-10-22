@@ -32,7 +32,7 @@ const diwaliWishes: WishOption[] = [
   },
 ];
 
-export const CelebrationWishes: React.FC = () => {
+export const CelebrationWishes: React.FC = React.memo(() => {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [copied, setCopied] = useState(false);
 
@@ -136,4 +136,4 @@ export const CelebrationWishes: React.FC = () => {
       </div>
     </div>
   );
-};
+});

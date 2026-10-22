@@ -14,7 +14,7 @@ interface LitMatchstickProps {
   onPutDownLighter: () => void;
 }
 
-export const LitMatchstick: React.FC<LitMatchstickProps> = ({
+export const LitMatchstick: React.FC<LitMatchstickProps> = React.memo(({
   matchPos,
   isNearFuse,
   matchState,
@@ -256,4 +256,4 @@ export const LitMatchstick: React.FC<LitMatchstickProps> = ({
       )}
     </>
   );
-};
+});

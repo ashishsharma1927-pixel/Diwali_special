@@ -437,6 +437,11 @@ export function App() {
     draggingCrackerIdRef.current = draggingCrackerId;
   }, [draggingCrackerId]);
 
+  useEffect(() => {
+    // Eagerly preload and decode authentic audio files (bomb.mp3, murgachap ladi.mp3, skyshots.mp3)
+    soundEngine.preloadAudioFiles();
+  }, []);
+
   // Strike fresh match from matchbox (Lights 1 Cracker)
   const handlePickUpMatch = () => {
     setActiveTool('match');
@@ -607,7 +612,7 @@ export function App() {
         // --- BOMB EXPLOSION (MULTI-VARIANT: Mirchi, Sutli, Atom, Gola, Hydrogen) ---
         const variant = latestCracker.bombVariant || 'sutli';
         const bScale = latestCracker.scale || 1.0;
-        soundEngine.playBombExplosion(variant);
+        soundEngine.playBombExplosion(variant, bScale);
         setScreenShake(0.85 * bScale);
 
         const expId = `${latestCracker.id}-${Date.now()}`;
@@ -673,16 +678,18 @@ export function App() {
         }, 6500);
       } else if (latestCracker.type === 'rocket') {
         // --- ROCKET LAUNCH & FLIGHT (AEROBATIC RUN ALL AROUND SCREEN, SCALED & TIMED) ---
-        soundEngine.playRocketLaunch();
         const targetSkyY = Math.random() * (window.innerHeight * 0.28) + 50;
         const rktScale = latestCracker.scale || 1.0;
         const rktDurationMs = latestCracker.duration || 5000;
         const maxFlight = Math.round((rktDurationMs / 1000) * 22);
+        const rktId = `${latestCracker.id}-${Date.now()}`;
+        const flightDurationSec = rktDurationMs / 1000;
+        soundEngine.startRocketFlight(rktId, flightDurationSec, latestCracker.rocketVariant);
 
         setFlyingRockets((rktList) => [
           ...rktList,
           {
-            id: `${latestCracker.id}-${Date.now()}`,
+            id: rktId,
             x: coords.x,
             y: coords.y,
             vx: 0,
@@ -1065,19 +1072,23 @@ export function App() {
       const start = crackerPointerStartRef.current;
       const moveDist = Math.hypot(px - start.x, py - start.y);
 
-      // Keep active anaars and fuljhadis in sync immediately while dragging!
-      setActiveAnaars((prev) =>
-        prev.map((a) => (a.id === draggingCrackerId ? { ...a, x: px, y: py } : a))
-      );
-      setActiveFuljhadis((prev) =>
-        prev.map((f) => (f.id === draggingCrackerId ? { ...f, x: px, y: py - 20 } : f))
-      );
-
       if (moveDist > 5 && !dragRafRef.current) {
         dragRafRef.current = requestAnimationFrame(() => {
           dragRafRef.current = null;
           const targetCracker = crackersRef.current.find((c) => c.id === draggingCrackerId);
           if (targetCracker) {
+            // Keep active anaars and fuljhadis in sync without triggering unneeded state re-renders
+            setActiveAnaars((prev) =>
+              prev.some((a) => a.id === draggingCrackerId)
+                ? prev.map((a) => (a.id === draggingCrackerId ? { ...a, x: px, y: py } : a))
+                : prev
+            );
+            setActiveFuljhadis((prev) =>
+              prev.some((f) => f.id === draggingCrackerId)
+                ? prev.map((f) => (f.id === draggingCrackerId ? { ...f, x: px, y: py - 20 } : f))
+                : prev
+            );
+
             const arenaStage = document.getElementById('arena-stage');
             const arenaRect = arenaStage?.getBoundingClientRect();
 
@@ -1299,6 +1310,7 @@ export function App() {
     soundEngine.stopAnaarSound();
     soundEngine.stopChakriSound();
     soundEngine.stopLadiPerformance();
+    soundEngine.stopAllRocketFlights();
     setActiveAnaars([]);
     setGroundChakris([]);
     setFlyingRockets([]);

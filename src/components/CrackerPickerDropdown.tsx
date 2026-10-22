@@ -373,7 +373,7 @@ interface CrackerPickerDropdownProps {
   isArena?: boolean;
 }
 
-export const CrackerPickerDropdown: React.FC<CrackerPickerDropdownProps> = ({
+export const CrackerPickerDropdown: React.FC<CrackerPickerDropdownProps> = React.memo(({
   category,
   onSelectOption,
   isArena = false,
@@ -445,4 +445,4 @@ export const CrackerPickerDropdown: React.FC<CrackerPickerDropdownProps> = ({
       )}
     </div>
   );
-};
+});

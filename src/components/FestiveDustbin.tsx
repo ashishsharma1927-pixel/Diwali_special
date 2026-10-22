@@ -7,7 +7,7 @@ interface FestiveDustbinProps {
   onSweepAllBurnt: () => void;
 }
 
-export const FestiveDustbin: React.FC<FestiveDustbinProps> = ({
+export const FestiveDustbin: React.FC<FestiveDustbinProps> = React.memo(({
   cleanedCount,
   isDragOver,
   onSweepAllBurnt,
@@ -78,4 +78,4 @@ export const FestiveDustbin: React.FC<FestiveDustbinProps> = ({
       </div>
     </div>
   );
-};
+});
