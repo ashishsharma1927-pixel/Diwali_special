@@ -425,6 +425,17 @@ export function App() {
   const matchTipRef = useRef({ x: 300, y: 300 });
   const lastFuseCheckTimeRef = useRef<number>(0);
   const dragRafRef = useRef<number | null>(null);
+  const crackersRef = useRef<CrackerItemData[]>(crackers);
+  const draggingCrackerIdRef = useRef<string | null>(null);
+  const currentPointerPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    crackersRef.current = crackers;
+  }, [crackers]);
+
+  useEffect(() => {
+    draggingCrackerIdRef.current = draggingCrackerId;
+  }, [draggingCrackerId]);
 
   // Strike fresh match from matchbox (Lights 1 Cracker)
   const handlePickUpMatch = () => {
@@ -522,116 +533,249 @@ export function App() {
     setIsMuted(!active);
   };
 
-  // Convert cracker coordinates to viewport client pixels (supports scrolling!)
-  const getCrackerCoords = useCallback((cracker: CrackerItemData) => {
-    const el = document.getElementById(`cracker-${cracker.id}`);
-    if (el) {
-      const r = el.getBoundingClientRect();
+  // Convert cracker ID to live viewport client pixels (handles live drag, drop, and scroll!)
+  const getCrackerCoordsById = useCallback((id: string) => {
+    // 1. If currently being dragged, use the live pointer coordinates!
+    if (draggingCrackerIdRef.current === id && currentPointerPosRef.current) {
       return {
-        x: r.left + r.width / 2,
-        y: r.top + r.height / 2,
+        x: currentPointerPosRef.current.x,
+        y: currentPointerPosRef.current.y,
       };
     }
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    return {
-      x: rect.left + (cracker.x / 100) * rect.width,
-      y: rect.top + (cracker.y / 100) * rect.height,
-    };
+
+    // 2. Query real-time DOM element
+    const el = document.getElementById(`cracker-${id}`);
+    if (el) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        return {
+          x: r.left + r.width / 2,
+          y: r.top + r.height / 2,
+        };
+      }
+    }
+
+    // 3. Fallback: calculate using latest state from crackersRef on active stage
+    const cracker = crackersRef.current.find((c) => c.id === id);
+    if (cracker) {
+      const arenaStage = document.getElementById('arena-stage');
+      const activeStage = cracker.section === 'arena'
+        ? arenaStage
+        : document.querySelector('.diwali-courtyard-stage');
+      const rect = activeStage?.getBoundingClientRect() || containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        return {
+          x: rect.left + (cracker.x / 100) * rect.width,
+          y: rect.top + (cracker.y / 100) * rect.height,
+        };
+      }
+    }
+
+    return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   }, []);
+
+  // Convert cracker coordinates to viewport client pixels (supports scrolling!)
+  const getCrackerCoords = useCallback((cracker: CrackerItemData) => {
+    return getCrackerCoordsById(cracker.id);
+  }, [getCrackerCoordsById]);
 
   // Ignite Cracker Core Logic
   const igniteCracker = useCallback((crackerId: string) => {
-    setCrackers((prev) => {
-      const target = prev.find((c) => c.id === crackerId);
-      if (!target || target.state !== 'idle') return prev;
+    const target = crackersRef.current.find((c) => c.id === crackerId);
+    if (!target || target.state !== 'idle') return;
 
-      // Start burning fuse
-      soundEngine.playMatchStrike();
-      soundEngine.playFuseBurn();
+    // Start burning fuse
+    soundEngine.playMatchStrike();
+    soundEngine.playFuseBurn();
 
-      // Immediately extinguish the matchstick - it spent its flame on this 1 cracker!
-      handleExtinguishMatch();
+    // Immediately extinguish the matchstick - it spent its flame on this 1 cracker!
+    handleExtinguishMatch();
 
-      // Slower, authentic fuse timings so the player sees and hears the sizzling anticipation!
-      const fuseTime = target.type === 'bomb' ? 1600 : target.type === 'rocket' ? 1400 : target.type === 'chakri' ? 1300 : target.type === 'anaar' ? 1500 : target.type === 'ladi' ? 1500 : target.type === 'skyshot' ? 1300 : target.type === 'fuljhadi' ? 350 : 450;
+    // Slower, authentic fuse timings so the player sees and hears the sizzling anticipation!
+    const fuseTime = target.type === 'bomb' ? 1600 : target.type === 'rocket' ? 1400 : target.type === 'chakri' ? 1300 : target.type === 'anaar' ? 1500 : target.type === 'ladi' ? 1500 : target.type === 'skyshot' ? 1300 : target.type === 'fuljhadi' ? 350 : 450;
 
-      setTimeout(() => {
-        const coords = getCrackerCoords(target);
+    setCrackers((prev) =>
+      prev.map((c) => (c.id === crackerId ? { ...c, state: 'burning' } : c))
+    );
 
-        if (target.type === 'bomb') {
-          // --- BOMB EXPLOSION (MULTI-VARIANT: Mirchi, Sutli, Atom, Gola, Hydrogen) ---
-          const variant = target.bombVariant || 'sutli';
-          const bScale = target.scale || 1.0;
-          soundEngine.playBombExplosion(variant);
-          setScreenShake(0.85 * bScale);
+    setTimeout(() => {
+      // Live current position where the cracker is NOW (dragged, dropped, or still holding)
+      const coords = getCrackerCoordsById(crackerId);
+      const latestCracker = crackersRef.current.find((c) => c.id === crackerId) || target;
 
-          const expId = `${target.id}-${Date.now()}`;
-          setBombExplosions((exps) => [
-            ...exps,
-            {
-              id: expId,
-              x: coords.x,
-              y: coords.y,
-              time: Date.now(),
-              variant,
-              scale: bScale,
-            },
-          ]);
+      if (latestCracker.type === 'bomb') {
+        // --- BOMB EXPLOSION (MULTI-VARIANT: Mirchi, Sutli, Atom, Gola, Hydrogen) ---
+        const variant = latestCracker.bombVariant || 'sutli';
+        const bScale = latestCracker.scale || 1.0;
+        soundEngine.playBombExplosion(variant);
+        setScreenShake(0.85 * bScale);
 
-          // Auto-clean explosion event after canvas processes it to prevent state memory buildup
-          setTimeout(() => {
-            setBombExplosions((curr) => curr.filter((e) => e.id !== expId));
-          }, 450);
+        const expId = `${latestCracker.id}-${Date.now()}`;
+        setBombExplosions((exps) => [
+          ...exps,
+          {
+            id: expId,
+            x: coords.x,
+            y: coords.y,
+            time: Date.now(),
+            variant,
+            scale: bScale,
+          },
+        ]);
 
+        // Auto-clean explosion event after canvas processes it to prevent state memory buildup
+        setTimeout(() => {
+          setBombExplosions((curr) => curr.filter((e) => e.id !== expId));
+        }, 450);
+
+        // If user was actively dragging this bomb when it detonates, commit final coordinates and end drag
+        if (draggingCrackerIdRef.current === crackerId && currentPointerPosRef.current) {
+          const px = currentPointerPosRef.current.x;
+          const py = currentPointerPosRef.current.y;
+          const arenaStage = document.getElementById('arena-stage');
+          const arenaRect = arenaStage?.getBoundingClientRect();
+          let isOverArena = false;
+          if (arenaRect && py >= arenaRect.top - 60) {
+            isOverArena = true;
+          }
+          const activeStage = isOverArena
+            ? arenaStage
+            : document.querySelector('.diwali-courtyard-stage');
+          const rect = activeStage?.getBoundingClientRect() || containerRef.current?.getBoundingClientRect();
+          if (rect) {
+            const x = Math.max(3, Math.min(97, ((px - rect.left) / rect.width) * 100));
+            const y = Math.max(8, Math.min(94, ((py - rect.top) / rect.height) * 100));
+            setCrackers((curr) =>
+              curr.map((c) => (c.id === crackerId ? { ...c, x, y, section: isOverArena ? 'arena' : 'courtyard', state: 'exploded' } : c))
+            );
+          } else {
+            setCrackers((curr) =>
+              curr.map((c) => (c.id === crackerId ? { ...c, state: 'exploded' } : c))
+            );
+          }
+          setDraggingCrackerId(null);
+          crackerPointerStartRef.current = null;
+        } else {
           setCrackers((curr) =>
             curr.map((c) => (c.id === crackerId ? { ...c, state: 'exploded' } : c))
           );
-          setBurstCount((b) => b + 1);
+        }
+        setBurstCount((b) => b + 1);
 
-          // Bomb scorch mark automatically disappears or can be dragged to dustbin
-          setTimeout(() => {
-            setCrackers((curr) =>
-              curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
-            );
-            setTimeout(() => {
-              setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
-            }, 1200);
-          }, 6500);
-        } else if (target.type === 'rocket') {
-          // --- ROCKET LAUNCH & FLIGHT (AEROBATIC RUN ALL AROUND SCREEN, SCALED & TIMED) ---
-          soundEngine.playRocketLaunch();
-          const targetSkyY = Math.random() * (window.innerHeight * 0.28) + 50;
-          const rktScale = target.scale || 1.0;
-          const rktDurationMs = target.duration || 5000;
-          const maxFlight = Math.round((rktDurationMs / 1000) * 22);
-
-          setFlyingRockets((rktList) => [
-            ...rktList,
-            {
-              id: `${target.id}-${Date.now()}`,
-              x: coords.x,
-              y: coords.y,
-              vx: 0,
-              vy: -15,
-              color: target.color || '#f59e0b',
-              trailColor: '#fde047',
-              targetY: targetSkyY,
-              exploded: false,
-              flightTime: 0,
-              maxFlightTime: maxFlight,
-              heading: -Math.PI / 2,
-              wobblePhase: Math.random() * Math.PI * 2,
-              scale: rktScale,
-              variant: target.rocketVariant,
-            },
-          ]);
+        // Bomb scorch mark automatically disappears or can be dragged to dustbin
+        setTimeout(() => {
           setCrackers((curr) =>
-            curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
+            curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
           );
-          setBurstCount((b) => b + 1);
+          setTimeout(() => {
+            setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
+          }, 1200);
+        }, 6500);
+      } else if (latestCracker.type === 'rocket') {
+        // --- ROCKET LAUNCH & FLIGHT (AEROBATIC RUN ALL AROUND SCREEN, SCALED & TIMED) ---
+        soundEngine.playRocketLaunch();
+        const targetSkyY = Math.random() * (window.innerHeight * 0.28) + 50;
+        const rktScale = latestCracker.scale || 1.0;
+        const rktDurationMs = latestCracker.duration || 5000;
+        const maxFlight = Math.round((rktDurationMs / 1000) * 22);
 
-          // Rocket bottle disappears 10 seconds after its use or can be put in dustbin
+        setFlyingRockets((rktList) => [
+          ...rktList,
+          {
+            id: `${latestCracker.id}-${Date.now()}`,
+            x: coords.x,
+            y: coords.y,
+            vx: 0,
+            vy: -15,
+            color: latestCracker.color || '#f59e0b',
+            trailColor: '#fde047',
+            targetY: targetSkyY,
+            exploded: false,
+            flightTime: 0,
+            maxFlightTime: maxFlight,
+            heading: -Math.PI / 2,
+            wobblePhase: Math.random() * Math.PI * 2,
+            scale: rktScale,
+            variant: latestCracker.rocketVariant,
+          },
+        ]);
+        setCrackers((curr) =>
+          curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
+        );
+        setBurstCount((b) => b + 1);
+
+        // Rocket bottle disappears 10 seconds after its use or can be put in dustbin
+        setTimeout(() => {
+          setCrackers((curr) =>
+            curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
+          );
+          setTimeout(() => {
+            setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
+          }, 1200);
+        }, 8800);
+      } else if (latestCracker.type === 'chakri') {
+        // --- CHAKRI: NORMALIZED, GROUNDED SPEED & ROTATION ---
+        soundEngine.startChakriSound();
+        const speed = 4.2; // Realistic, gentle ground sliding speed
+        const randomAngle = Math.random() * Math.PI * 2;
+        const chkDurationMs = latestCracker.duration || 10000;
+        const chkScale = latestCracker.scale || 1.0;
+
+        setGroundChakris((chks) => [
+          ...chks,
+          {
+            id: latestCracker.id,
+            x: coords.x,
+            y: coords.y,
+            vx: Math.cos(randomAngle) * speed,
+            vy: Math.sin(randomAngle) * speed * 0.65,
+            angle: 0,
+            rotSpeed: 2.4,
+            color: latestCracker.color || '#f59e0b',
+            duration: chkDurationMs,
+            startTime: performance.now(),
+            scale: chkScale,
+            variant: latestCracker.chakriVariant,
+          },
+        ]);
+        setCrackers((curr) =>
+          curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
+        );
+        setBurstCount((b) => b + 1);
+      } else if (latestCracker.type === 'anaar') {
+        // --- ANAAR FOUNTAIN: RISES BOTTOM TO TOP THEN COMES DOWN (TIMED & SCALED) ---
+        soundEngine.startAnaarSound();
+        const anaarDurationMs = latestCracker.duration || 10000;
+        const anaarScale = latestCracker.scale || 1.0;
+
+        setActiveAnaars((anaarList) => [
+          ...anaarList,
+          {
+            id: latestCracker.id,
+            x: coords.x,
+            y: coords.y,
+            color: latestCracker.color || '#f59e0b',
+            secondaryColor: '#facc15',
+            startTime: performance.now(),
+            duration: anaarDurationMs,
+            scale: anaarScale,
+            variant: latestCracker.anaarVariant,
+          },
+        ]);
+        setCrackers((curr) =>
+          curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
+        );
+        setBurstCount((b) => b + 1);
+
+        // Once fountain finishes, anaar pot burns out, and disappears or can be dropped in dustbin
+        setTimeout(() => {
+          soundEngine.stopAnaarSound();
+          setActiveAnaars((list) => list.filter((a) => a.id !== latestCracker.id));
+          setCrackers((curr) =>
+            curr.map((c) => (c.id === crackerId ? { ...c, state: 'done' } : c))
+          );
+
+          // Disappear the burnt anaar pot 10 seconds after completion
           setTimeout(() => {
             setCrackers((curr) =>
               curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
@@ -640,193 +784,69 @@ export function App() {
               setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
             }, 1200);
           }, 8800);
-        } else if (target.type === 'chakri') {
-          // --- CHAKRI: NORMALIZED, GROUNDED SPEED & ROTATION ---
-          soundEngine.startChakriSound();
-          const speed = 4.2; // Realistic, gentle ground sliding speed
-          const randomAngle = Math.random() * Math.PI * 2;
-          const chkDurationMs = target.duration || 10000;
-          const chkScale = target.scale || 1.0;
+        }, anaarDurationMs);
+      } else if (latestCracker.type === 'diya') {
+        // --- DIYA SACRED FLAME ---
+        soundEngine.playDiwaliChime();
+        setCrackers((curr) =>
+          curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
+        );
+      } else if (latestCracker.type === 'skyshot') {
+        // --- SKYSHOT: MULTI-SHOT REPEATER CAKE (12, 25, 50 SHELLS - ONE BY ONE SLOW & MAJESTIC) ---
+        const totalShots = latestCracker.totalShots || 12;
+        let shotsFired = 0;
 
-          setGroundChakris((chks) => [
-            ...chks,
-            {
-              id: target.id,
-              x: coords.x,
-              y: coords.y,
-              vx: Math.cos(randomAngle) * speed,
-              vy: Math.sin(randomAngle) * speed * 0.65,
-              angle: 0,
-              rotSpeed: 2.4,
-              color: target.color || '#f59e0b',
-              duration: chkDurationMs,
-              startTime: performance.now(),
-              scale: chkScale,
-              variant: target.chakriVariant,
-            },
-          ]);
-          setCrackers((curr) =>
-            curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
-          );
-          setBurstCount((b) => b + 1);
-        } else if (target.type === 'anaar') {
-          // --- ANAAR FOUNTAIN: RISES BOTTOM TO TOP THEN COMES DOWN (TIMED & SCALED) ---
-          soundEngine.startAnaarSound();
-          const anaarDurationMs = target.duration || 10000;
-          const anaarScale = target.scale || 1.0;
+        setCrackers((curr) =>
+          curr.map((c) => (c.id === crackerId ? { ...c, state: 'active', shotsRemaining: totalShots } : c))
+        );
 
-          setActiveAnaars((anaarList) => [
-            ...anaarList,
-            {
-              id: target.id,
-              x: coords.x,
-              y: coords.y,
-              color: target.color || '#f59e0b',
-              secondaryColor: '#facc15',
-              startTime: performance.now(),
-              duration: anaarDurationMs,
-              scale: anaarScale,
-              variant: target.anaarVariant,
-            },
-          ]);
-          setCrackers((curr) =>
-            curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
-          );
+        // Pacing: 1400ms spacing between shots so each shell shoots out one-by-one, ascends slowly, and detonates grandly
+        const intervalTime = 1400;
+        const skyshotTimer = setInterval(() => {
+          shotsFired++;
+          const remaining = Math.max(0, totalShots - shotsFired);
+
+          soundEngine.playSkyshotLaunch();
+          setScreenShake(0.24);
           setBurstCount((b) => b + 1);
 
-          // Once fountain finishes, anaar pot burns out, and disappears or can be dropped in dustbin
-          setTimeout(() => {
-            soundEngine.stopAnaarSound();
-            setActiveAnaars((list) => list.filter((a) => a.id !== target.id));
-            setCrackers((curr) =>
-              curr.map((c) => (c.id === crackerId ? { ...c, state: 'done' } : c))
-            );
+          // Launch glowing mortar shell straight up into the high sky from current location of skyshot box
+          const currentCoords = getCrackerCoordsById(crackerId);
+          const targetSkyY = Math.random() * (window.innerHeight * 0.20) + 45;
+          const shellColors = ['#f59e0b', '#ec4899', '#38bdf8', '#10b981', '#f43f5e', '#a855f7', '#fbbf24'];
+          const shellColor = shellColors[shotsFired % shellColors.length];
 
-            // Disappear the burnt anaar pot 10 seconds after completion
+          setFlyingRockets((rktList) => [
+            ...rktList,
+            {
+              id: `${latestCracker.id}-shot-${shotsFired}-${Date.now()}`,
+              x: currentCoords.x + (Math.random() - 0.5) * 12,
+              y: currentCoords.y - 12,
+              vx: (Math.random() - 0.5) * 1.5,
+              vy: -9.0, // Stately vertical ascent
+              color: shellColor,
+              trailColor: '#fef08a',
+              targetY: targetSkyY,
+              exploded: false,
+              flightTime: 0,
+              maxFlightTime: 52, // Longer, majestic ascent time before apex detonation
+              heading: -Math.PI / 2 + (Math.random() - 0.5) * 0.08,
+              wobblePhase: 0,
+              scale: 1.25,
+            },
+          ]);
+
+          setCrackers((curr) =>
+            curr.map((c) => (c.id === crackerId ? { ...c, shotsRemaining: remaining } : c))
+          );
+
+          if (shotsFired >= totalShots) {
+            clearInterval(skyshotTimer);
             setTimeout(() => {
               setCrackers((curr) =>
-                curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
+                curr.map((c) => (c.id === crackerId ? { ...c, state: 'done' } : c))
               );
-              setTimeout(() => {
-                setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
-              }, 1200);
-            }, 8800);
-          }, anaarDurationMs);
-        } else if (target.type === 'diya') {
-          // --- DIYA SACRED FLAME ---
-          soundEngine.playDiwaliChime();
-          setCrackers((curr) =>
-            curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
-          );
-        } else if (target.type === 'skyshot') {
-          // --- SKYSHOT: MULTI-SHOT REPEATER CAKE (12, 25, 50 SHELLS - ONE BY ONE SLOW & MAJESTIC) ---
-          const totalShots = target.totalShots || 12;
-          let shotsFired = 0;
-
-          setCrackers((curr) =>
-            curr.map((c) => (c.id === crackerId ? { ...c, state: 'active', shotsRemaining: totalShots } : c))
-          );
-
-          // Pacing: 1400ms spacing between shots so each shell shoots out one-by-one, ascends slowly, and detonates grandly
-          const intervalTime = 1400;
-          const skyshotTimer = setInterval(() => {
-            shotsFired++;
-            const remaining = Math.max(0, totalShots - shotsFired);
-
-            soundEngine.playSkyshotLaunch();
-            setScreenShake(0.24);
-            setBurstCount((b) => b + 1);
-
-            // Launch glowing mortar shell straight up into the high sky with a slower, stately vertical ascent
-            const targetSkyY = Math.random() * (window.innerHeight * 0.20) + 45;
-            const shellColors = ['#f59e0b', '#ec4899', '#38bdf8', '#10b981', '#f43f5e', '#a855f7', '#fbbf24'];
-            const shellColor = shellColors[shotsFired % shellColors.length];
-
-            setFlyingRockets((rktList) => [
-              ...rktList,
-              {
-                id: `${target.id}-shot-${shotsFired}-${Date.now()}`,
-                x: coords.x + (Math.random() - 0.5) * 12,
-                y: coords.y - 12,
-                vx: (Math.random() - 0.5) * 1.5,
-                vy: -9.0, // Stately vertical ascent
-                color: shellColor,
-                trailColor: '#fef08a',
-                targetY: targetSkyY,
-                exploded: false,
-                flightTime: 0,
-                maxFlightTime: 52, // Longer, majestic ascent time before apex detonation
-                heading: -Math.PI / 2 + (Math.random() - 0.5) * 0.08,
-                wobblePhase: 0,
-                scale: 1.25,
-              },
-            ]);
-
-            setCrackers((curr) =>
-              curr.map((c) => (c.id === crackerId ? { ...c, shotsRemaining: remaining } : c))
-            );
-
-            if (shotsFired >= totalShots) {
-              clearInterval(skyshotTimer);
-              setTimeout(() => {
-                setCrackers((curr) =>
-                  curr.map((c) => (c.id === crackerId ? { ...c, state: 'done' } : c))
-                );
-                // Box scorch disappears automatically after 5 seconds
-                setTimeout(() => {
-                  setCrackers((curr) =>
-                    curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
-                  );
-                  setTimeout(() => {
-                    setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
-                  }, 800);
-                }, 5000);
-              }, 1200);
-            }
-          }, intervalTime);
-        } else if (target.type === 'ladi') {
-          // --- LADI: MURGACHAP CHATAI (Audio-reactive synchronized burst with murgachap ladi.mp3) ---
-          const totalCount = target.totalLadiCount || 100;
-
-          setCrackers((curr) =>
-            curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
-          );
-
-          // Audio-reactive Murgachap ladi performance:
-          // Every pop sound in murgachap ladi.mp3 triggers an explosion flash, screen shake, and paper fragments!
-          soundEngine.playLadiPerformance({
-            maxPops: totalCount,
-            onPop: (popIdx) => {
-              setScreenShake(0.14);
-              setBurstCount((b) => b + 1);
-
-              // Pop mini firecrackers and red paper shreds around the mat
-              const jitterX = (Math.random() - 0.5) * 65;
-              const jitterY = (Math.random() - 0.5) * 28;
-              const expId = `${target.id}-pop-${popIdx}-${Date.now()}`;
-
-              setBombExplosions((exps) => [
-                ...exps,
-                {
-                  id: expId,
-                  x: coords.x + jitterX,
-                  y: coords.y + jitterY,
-                  time: Date.now(),
-                  variant: 'mirchi',
-                  scale: 0.38,
-                },
-              ]);
-
-              setTimeout(() => {
-                setBombExplosions((curr) => curr.filter((e) => e.id !== expId));
-              }, 280);
-            },
-            onComplete: () => {
-              setCrackers((curr) =>
-                curr.map((c) => (c.id === crackerId ? { ...c, state: 'exploded' } : c))
-              );
-
-              // Scraps spread around and disappear automatically after 5 seconds
+              // Box scorch disappears automatically after 5 seconds
               setTimeout(() => {
                 setCrackers((curr) =>
                   curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
@@ -835,52 +855,104 @@ export function App() {
                   setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
                 }, 800);
               }, 5000);
-            },
-          });
-        } else if (target.type === 'fuljhadi') {
-          // --- FULJHADI: 10s, 20s, 30s SPARKLER WITH IRON CRACKLE ---
-          const duration = target.duration || 10000;
-          const newFuljhadi: ActiveFuljhadi = {
-            id: target.id,
-            x: coords.x,
-            y: coords.y,
-            startTime: performance.now(),
-            duration,
-            color: target.color || '#facc15',
-            variant: target.fuljhadiVariant,
-          };
+            }, 1200);
+          }
+        }, intervalTime);
+      } else if (latestCracker.type === 'ladi') {
+        // --- LADI: MURGACHAP CHATAI (Audio-reactive synchronized burst with murgachap ladi.mp3) ---
+        const totalCount = latestCracker.totalLadiCount || 100;
 
-          setActiveFuljhadis((list) => [...list, newFuljhadi]);
-          setCrackers((curr) =>
-            curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
-          );
-          setBurstCount((b) => b + 1);
+        setCrackers((curr) =>
+          curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
+        );
 
-          const soundInterval = setInterval(() => {
-            soundEngine.playFuljhadiSparkle();
-          }, 280);
+        // Audio-reactive Murgachap ladi performance:
+        // Every pop sound in murgachap ladi.mp3 triggers an explosion flash, screen shake, and paper fragments!
+        soundEngine.playLadiPerformance({
+          maxPops: totalCount,
+          onPop: (popIdx) => {
+            setScreenShake(0.14);
+            setBurstCount((b) => b + 1);
 
-          setTimeout(() => {
-            clearInterval(soundInterval);
-            setActiveFuljhadis((list) => list.filter((f) => f.id !== target.id));
+            const currentCoords = getCrackerCoordsById(crackerId);
+            // Pop mini firecrackers and red paper shreds around the mat at its current location
+            const jitterX = (Math.random() - 0.5) * 65;
+            const jitterY = (Math.random() - 0.5) * 28;
+            const expId = `${latestCracker.id}-pop-${popIdx}-${Date.now()}`;
+
+            setBombExplosions((exps) => [
+              ...exps,
+              {
+                id: expId,
+                x: currentCoords.x + jitterX,
+                y: currentCoords.y + jitterY,
+                time: Date.now(),
+                variant: 'mirchi',
+                scale: 0.38,
+              },
+            ]);
+
+            setTimeout(() => {
+              setBombExplosions((curr) => curr.filter((e) => e.id !== expId));
+            }, 280);
+          },
+          onComplete: () => {
             setCrackers((curr) =>
-              curr.map((c) => (c.id === crackerId ? { ...c, state: 'done' } : c))
+              curr.map((c) => (c.id === crackerId ? { ...c, state: 'exploded' } : c))
             );
+
+            // Scraps spread around and disappear automatically after 5 seconds
             setTimeout(() => {
               setCrackers((curr) =>
                 curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
               );
               setTimeout(() => {
                 setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
-              }, 1200);
-            }, 7000);
-          }, duration);
-        }
-      }, fuseTime);
+              }, 800);
+            }, 5000);
+          },
+        });
+      } else if (latestCracker.type === 'fuljhadi') {
+        // --- FULJHADI: 10s, 20s, 30s SPARKLER WITH IRON CRACKLE ---
+        const duration = latestCracker.duration || 10000;
+        const newFuljhadi: ActiveFuljhadi = {
+          id: latestCracker.id,
+          x: coords.x,
+          y: coords.y,
+          startTime: performance.now(),
+          duration,
+          color: latestCracker.color || '#facc15',
+          variant: latestCracker.fuljhadiVariant,
+        };
 
-      return prev.map((c) => (c.id === crackerId ? { ...c, state: 'burning' } : c));
-    });
-  }, [getCrackerCoords, handleExtinguishMatch]);
+        setActiveFuljhadis((list) => [...list, newFuljhadi]);
+        setCrackers((curr) =>
+          curr.map((c) => (c.id === crackerId ? { ...c, state: 'active' } : c))
+        );
+        setBurstCount((b) => b + 1);
+
+        const soundInterval = setInterval(() => {
+          soundEngine.playFuljhadiSparkle();
+        }, 280);
+
+        setTimeout(() => {
+          clearInterval(soundInterval);
+          setActiveFuljhadis((list) => list.filter((f) => f.id !== latestCracker.id));
+          setCrackers((curr) =>
+            curr.map((c) => (c.id === crackerId ? { ...c, state: 'done' } : c))
+          );
+          setTimeout(() => {
+            setCrackers((curr) =>
+              curr.map((c) => (c.id === crackerId ? { ...c, isDisappearing: true } : c))
+            );
+            setTimeout(() => {
+              setCrackers((curr) => curr.filter((c) => c.id !== crackerId));
+            }, 1200);
+          }, 7000);
+        }, duration);
+      }
+    }, fuseTime);
+  }, [getCrackerCoordsById, handleExtinguishMatch]);
 
   // Rocket sky explosion callback
   const handleRocketExplode = useCallback((rkt: FlyingRocket) => {
@@ -966,14 +1038,17 @@ export function App() {
   const handleCrackerPointerDown = (id: string, e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.stopPropagation();
+    currentPointerPosRef.current = { x: e.clientX, y: e.clientY };
     crackerPointerStartRef.current = { id, x: e.clientX, y: e.clientY, time: Date.now() };
     setDraggingCrackerId(id);
+    draggingCrackerIdRef.current = id;
   };
 
   // Mouse & Touch movement tracking: High performance, zero unnecessary React state churn
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const px = e.clientX;
     const py = e.clientY;
+    currentPointerPosRef.current = { x: px, y: py };
     matchTipRef.current = { x: px, y: py };
 
     // 1. Proximity detection to Festive Dustbin in bottom-left corner (functional state toggle only)
@@ -990,10 +1065,18 @@ export function App() {
       const start = crackerPointerStartRef.current;
       const moveDist = Math.hypot(px - start.x, py - start.y);
 
+      // Keep active anaars and fuljhadis in sync immediately while dragging!
+      setActiveAnaars((prev) =>
+        prev.map((a) => (a.id === draggingCrackerId ? { ...a, x: px, y: py } : a))
+      );
+      setActiveFuljhadis((prev) =>
+        prev.map((f) => (f.id === draggingCrackerId ? { ...f, x: px, y: py - 20 } : f))
+      );
+
       if (moveDist > 5 && !dragRafRef.current) {
         dragRafRef.current = requestAnimationFrame(() => {
           dragRafRef.current = null;
-          const targetCracker = crackers.find((c) => c.id === draggingCrackerId);
+          const targetCracker = crackersRef.current.find((c) => c.id === draggingCrackerId);
           if (targetCracker) {
             const arenaStage = document.getElementById('arena-stage');
             const arenaRect = arenaStage?.getBoundingClientRect();
@@ -1054,6 +1137,7 @@ export function App() {
       setCrackers((prev) => prev.filter((c) => c.id !== draggingCrackerId));
       setCleanedCount((prev) => prev + 1);
       setDraggingCrackerId(null);
+      draggingCrackerIdRef.current = null;
       setIsDustbinHovered(false);
       crackerPointerStartRef.current = null;
       return;
@@ -1061,12 +1145,14 @@ export function App() {
 
     if (crackerPointerStartRef.current) {
       const { id, x, y, time } = crackerPointerStartRef.current;
-      const dist = Math.hypot(e.clientX - x, e.clientY - y);
+      const px = e.clientX;
+      const py = e.clientY;
+      const dist = Math.hypot(px - x, py - y);
       const elapsed = Date.now() - time;
 
       // Direct Click on Cracker: ignite if user is holding lit matchstick OR gas lighter!
       if (dist < 8 && elapsed < 450) {
-        const target = crackers.find((c) => c.id === id);
+        const target = crackersRef.current.find((c) => c.id === id);
         if (target && target.state === 'idle') {
           if ((activeTool === 'match' && matchState === 'lit') || activeTool === 'lighter') {
             igniteCracker(id);
@@ -1077,16 +1163,57 @@ export function App() {
           setCrackers((curr) => curr.filter((c) => c.id !== id));
           setCleanedCount((prev) => prev + 1);
         }
+      } else if (dist >= 8) {
+        // Drag release: immediately commit the final coordinates of the cracker
+        if (dragRafRef.current) {
+          cancelAnimationFrame(dragRafRef.current);
+          dragRafRef.current = null;
+        }
+
+        const arenaStage = document.getElementById('arena-stage');
+        const arenaRect = arenaStage?.getBoundingClientRect();
+        let isOverArena = false;
+        if (arenaRect && py >= arenaRect.top - 60) {
+          isOverArena = true;
+        }
+        const activeStage = isOverArena
+          ? arenaStage
+          : document.querySelector('.diwali-courtyard-stage');
+        const rect = activeStage?.getBoundingClientRect() || containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          const finalX = Math.max(3, Math.min(97, ((px - rect.left) / rect.width) * 100));
+          const finalY = Math.max(8, Math.min(94, ((py - rect.top) / rect.height) * 100));
+          setCrackers((prev) =>
+            prev.map((c) =>
+              c.id === id
+                ? { ...c, x: finalX, y: finalY, section: isOverArena ? 'arena' : 'courtyard' }
+                : c
+            )
+          );
+        }
+
+        // Keep active anaars / fuljhadis in sync with final drop location
+        setTimeout(() => {
+          const finalCoords = getCrackerCoordsById(id);
+          setActiveAnaars((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, x: finalCoords.x, y: finalCoords.y } : a))
+          );
+          setActiveFuljhadis((prev) =>
+            prev.map((f) => (f.id === id ? { ...f, x: finalCoords.x, y: finalCoords.y - 20 } : f))
+          );
+        }, 30);
       }
       // Note: No sound played on drag release / selection
 
       crackerPointerStartRef.current = null;
       setDraggingCrackerId(null);
+      draggingCrackerIdRef.current = null;
       return;
     }
 
     if (draggingCrackerId) {
       setDraggingCrackerId(null);
+      draggingCrackerIdRef.current = null;
     }
   };
 

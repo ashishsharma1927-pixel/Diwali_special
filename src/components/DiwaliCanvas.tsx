@@ -460,9 +460,19 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
         const totalDuration = anaar.duration || 15000;
         if (elapsed > totalDuration) return;
 
-        // Use pre-computed coordinates directly: zero layout thrashing (no getBoundingClientRect in RAF)
-        const anaarX = anaar.x;
-        const anaarY = anaar.y;
+        // Track live coordinates if cracker is moved, dragged, or scrolled
+        let anaarX = anaar.x;
+        let anaarY = anaar.y;
+        const el = document.getElementById(`cracker-${anaar.id}`);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            anaarX = r.left + r.width / 2;
+            anaarY = r.top + r.height * 0.15;
+            anaar.x = anaarX;
+            anaar.y = anaarY;
+          }
+        }
 
         const progress = elapsed / totalDuration;
         const aScale = anaar.scale || (totalDuration > 12000 ? 1.4 : totalDuration < 8000 ? 0.75 : 1.0);
@@ -537,9 +547,19 @@ export const DiwaliCanvas: React.FC<DiwaliCanvasProps> = ({
         const elapsed = now - f.startTime;
         if (elapsed > f.duration) return;
 
-        // Use pre-computed coordinates directly: zero layout thrashing
-        const fx = f.x;
-        const fy = f.y;
+        // Track live coordinates if fuljhadi sparkler is moved, dragged, or scrolled
+        let fx = f.x;
+        let fy = f.y;
+        const el = document.getElementById(`cracker-${f.id}`);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            fx = r.left + r.width / 2;
+            fy = r.top + r.height * 0.22;
+            f.x = fx;
+            f.y = fy;
+          }
+        }
 
         // Branching starry iron sparks
         const sparkCount = isMobile ? 4 : 8;
