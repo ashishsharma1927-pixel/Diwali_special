@@ -1,4 +1,4 @@
-# 🪔 Shubh Deepavali & Kleanup — Interactive Diwali Celebration
+# 🪔 Shubh Deepavali — Interactive Diwali Celebration
 
 > 🚀 **Live Website:** [https://diwalidhmaka.vercel.app/](https://diwalidhmaka.vercel.app/)
 
@@ -39,8 +39,8 @@ An interactive, vibrant Diwali festival web experience built with React, Vite, T
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/<your-username>/kleanup.git
-   cd kleanup
+   git clone https://github.com/ashishsharma1927-pixel/Diwali_special.git
+   cd Diwali_special
    ```
 
 2. Install dependencies:
@@ -84,12 +84,12 @@ This project is configured with a GitHub Actions workflow in [`.github/workflows
    git add .
    git commit -m "Configure GitHub Pages deployment and project setup"
    git branch -M main
-   git remote add origin https://github.com/<your-username>/<your-repo-name>.git
+   git remote add origin https://github.com/ashishsharma1927-pixel/Diwali_special.git
    git push -u origin main
    ```
 
 2. **Enable GitHub Pages in your Repository Settings**:
-   - Go to your repository on GitHub.
+   - Go to your repository on GitHub: [ashishsharma1927-pixel/Diwali_special](https://github.com/ashishsharma1927-pixel/Diwali_special)
    - Click on **Settings** (⚙️) tab at the top.
    - In the left sidebar, click on **Pages**.
    - Under **Build and deployment** > **Source**, select **GitHub Actions**.
@@ -97,7 +97,7 @@ This project is configured with a GitHub Actions workflow in [`.github/workflows
 3. **Enjoy your live site**:
    - The deployment workflow will run automatically upon every push to `main` (or `master`).
    - You can monitor the progress under the **Actions** tab.
-   - Once completed, your site URL will be displayed in the **Pages** settings and in the GitHub Actions summary (e.g. `https://<your-username>.github.io/<your-repo-name>/`).
+   - Once completed, your site URL will be displayed in the **Pages** settings and in the GitHub Actions summary (e.g. `https://ashishsharma1927-pixel.github.io/Diwali_special/`).
 
 ---
 
