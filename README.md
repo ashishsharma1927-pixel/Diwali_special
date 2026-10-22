@@ -1,12 +1,14 @@
 # 🪔 Shubh Deepavali & Kleanup — Interactive Diwali Celebration
 
-An interactive, vibrant Diwali festival web experience built with React, Vite, TypeScript, and the Web Audio API. Celebrate the festival of lights with interactive fireworks, glowing diyas, traditional rangoli, divine arrows, festive sounds, and an eco-friendly celebration message!
+> 🚀 **Live Website:** [https://diwalidhmaka.vercel.app/](https://diwalidhmaka.vercel.app/)
 
-![Diwali Celebration](https://img.shields.io/badge/Festival-Diwali-orange?style=flat-square)
-![React](https://img.shields.io/badge/React-19-blue?style=flat-square)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat-square)
-![Vite](https://img.shields.io/badge/Vite-6.x-646cff?style=flat-square)
-![Deploy](https://img.shields.io/badge/Deploy-GitHub%20Pages-success?style=flat-square)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-diwalidhmaka.vercel.app-success?style=for-the-badge&logo=vercel)](https://diwalidhmaka.vercel.app/)
+[![Festival](https://img.shields.io/badge/Festival-Diwali-orange?style=for-the-badge)](https://diwalidhmaka.vercel.app/)
+[![React](https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react)](https://diwalidhmaka.vercel.app/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=for-the-badge&logo=typescript)](https://diwalidhmaka.vercel.app/)
+[![Vite](https://img.shields.io/badge/Vite-6.x-646cff?style=for-the-badge&logo=vite)](https://diwalidhmaka.vercel.app/)
+
+An interactive, vibrant Diwali festival web experience built with React, Vite, TypeScript, and the Web Audio API. Celebrate the festival of lights with interactive fireworks, glowing diyas, traditional rangoli, festive sounds, and an eco-friendly celebration message!
 
 ---
 
